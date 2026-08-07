@@ -39,6 +39,12 @@ Issues = "https://github.com/iderex/attrappe/issues"
 # already chosen, and its `strict` bundle is maintained upstream rather than
 # copied here. A checker needing a second runtime would fail that test.
 types = ["mypy>=2.3.0"]
+# PyYAML because the workflow audit has to read the workflow files as YAML.
+# Matching them with regular expressions is the shape this repository already
+# has a reason to avoid: enforcement logic that word-splits its input and
+# refuses valid work. There is no YAML parser in the standard library, so the
+# dependency is forced rather than chosen, and it is held to one dev group.
+workflows = ["pyyaml>=6.0", "types-pyyaml>=6.0"]
 
 # The version is declared in exactly one place. The build backend reads the
 # literal out of the package rather than carrying a second copy of it here, so a
@@ -58,7 +64,9 @@ packages = ["src/attrappe"]
 # a newer version would accept syntax the supported floor rejects.
 python_version = "3.11"
 mypy_path = "src"
-packages = ["attrappe"]
+# Both the package and the repository tooling. A script that gates a merge is
+# not exempt from the check it gates with.
+files = ["src/attrappe", "tools"]
 
 # Strictest practical mode. `strict` is the bundle mypy itself maintains, so the
 # set grows when mypy grows it rather than drifting against a list copied here

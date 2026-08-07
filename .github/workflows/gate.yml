@@ -64,10 +64,40 @@ jobs:
           # supported floor does not have.
           python-version: "3.11"
 
-      - name: Install the package and the type checker
+      - name: Install the package and the checkers
         # Editable so the checker resolves the package the way a contributor's
-        # environment does. The `types` group is where the checker is pinned.
-        run: python -m pip install -e . --group types
+        # environment does. `types` pins the checker; `workflows` pins the stubs
+        # it needs to check the workflow audit, which is under tools/ and is
+        # checked like anything else.
+        run: python -m pip install -e . --group types --group workflows
 
       - name: Check types
         run: python -m mypy
+
+  workflows:
+    # As with the types job above, the slash is part of the name because a check
+    # run carries the job name alone.
+    name: Gate / workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The audit reads the tree and the git index. It pushes nothing.
+          persist-credentials: false
+          # The audit takes its file list from `git ls-files`, which needs the
+          # index. A checkout provides it; no history beyond the head is read,
+          # so the default shallow fetch is enough.
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install the YAML parser
+        # The audit imports nothing from the package, so the package is not
+        # installed here. One group, one dependency.
+        run: python -m pip install --group workflows
+
+      - name: Audit the workflow files
+        run: python tools/workflow_audit.py
