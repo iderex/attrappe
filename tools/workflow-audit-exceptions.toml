@@ -1,0 +1,21 @@
+# Waivers for tools/workflow_audit.py.
+#
+# A waiver is a debt that carries what retires it, not a dispensation. Each
+# entry names one workflow, one rule, and the reason the rule does not apply
+# there. The audit refuses an entry with no reason, an entry naming a rule it
+# does not have, an entry naming a file git does not track, and an entry that
+# waives nothing because the workflow no longer breaks that rule.
+#
+# The last of those is what keeps the register honest in both directions. A
+# waiver whose reason has expired disappears from the diff and stays green
+# forever unless something goes red when it stops being needed.
+#
+# The shape:
+#
+#     [[exception]]
+#     workflow = ".github/workflows/example.yml"
+#     rule = "workflow-has-a-concurrency-group"
+#     reason = "Publishes a release. A cancelled run leaves a partial upload."
+#
+# There are no entries. Every tracked workflow passes every rule today, and an
+# entry added while that is true is refused as waiving nothing.
