@@ -31,6 +31,15 @@ classifiers = [
 Source = "https://github.com/iderex/attrappe"
 Issues = "https://github.com/iderex/attrappe/issues"
 
+# Development tools, one group per gate leg. These are not runtime dependencies
+# and never reach a distribution: [project.dependencies] above stays empty.
+# Each group is added by the issue that introduces its leg.
+[dependency-groups]
+# mypy because it configures out of this file, needs no runtime beyond the one
+# already chosen, and its `strict` bundle is maintained upstream rather than
+# copied here. A checker needing a second runtime would fail that test.
+types = ["mypy>=2.3.0"]
+
 # The version is declared in exactly one place. The build backend reads the
 # literal out of the package rather than carrying a second copy of it here, so a
 # distribution can disagree with an import only if this line is wrong.
@@ -43,3 +52,37 @@ packages = ["src/attrappe"]
 # The lint, type and test tool tables belong in this file and not in four more.
 # Each one is added by the issue that introduces its tool, so that the settings
 # arrive with the check that depends on them rather than ahead of it.
+
+[tool.mypy]
+# The floor from docs/decisions/0001-implementation-language.md. Checking against
+# a newer version would accept syntax the supported floor rejects.
+python_version = "3.11"
+mypy_path = "src"
+packages = ["attrappe"]
+
+# Strictest practical mode. `strict` is the bundle mypy itself maintains, so the
+# set grows when mypy grows it rather than drifting against a list copied here
+# once. The three below are outside that bundle and are named individually.
+strict = true
+warn_unreachable = true
+enable_error_code = [
+  "redundant-expr",
+  "truthy-bool",
+  "ignore-without-code",
+]
+# An unused ignore is a claim about an error that no longer happens, so it is an
+# error rather than a comment.
+warn_unused_ignores = true
+pretty = true
+
+# Third-party libraries without type information get a per-module entry here,
+# each with a comment naming the library and why it has none. Never a global
+# relaxation: `ignore_missing_imports` at the top level would silence every
+# future import at once, and the point of this list is that its growth is
+# visible in the diff.
+#
+# An entry is a [[tool.mypy.overrides]] block naming the module and setting
+# ignore_missing_imports, with the comment above it.
+#
+# The list is empty and no such block exists. The runtime dependency list in
+# [project] is also empty, so there is nothing yet that could need an entry.
