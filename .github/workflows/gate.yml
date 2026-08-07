@@ -33,10 +33,20 @@ concurrency:
 
 jobs:
   types:
-    # The check-run name is "Gate / types". It is the workflow name, a slash, and
-    # this job's `name`. Changing either half renames the check and silently
-    # breaks every place that quotes it.
-    name: types
+    # The check-run name is this string verbatim, and the slash is part of it.
+    #
+    # A check run is named after the job and after nothing else. The workflow
+    # name is not a prefix: it is shown beside the check in the pull-request UI,
+    # which reads like a prefix and is not one. Measured on this repository
+    # rather than assumed, by asking the API what a run of an earlier version of
+    # this file was actually called:
+    #
+    #     gh api repos/iderex/attrappe/commits/cdf764c/check-runs --jq '.check_runs[].name'
+    #
+    # which answered `types` while the UI showed "Gate / types". The ruleset and
+    # every list of required checks match the API's name, so the slash has to be
+    # inside this value or the name that gets quoted elsewhere does not exist.
+    name: Gate / types
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
