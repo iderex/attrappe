@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "attrappe"
+description = "An instrument emulator that answers a measurement driver the way an instrument does, including the inconvenient parts."
+readme = "README.md"
+requires-python = ">=3.11"
+dynamic = ["version"]
+
+# The runtime dependency list is empty and every addition to it is argued in the
+# issue that adds it. TOML parsing, which the profile format needs, is tomllib in
+# the standard library from the version floor in docs/decisions/0001.
+dependencies = []
+
+# No license field and no license classifier. The license of this repository is
+# an open question for the maintainer and nothing here may assume an answer to
+# it.
+classifiers = [
+  "Development Status :: 1 - Planning",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering",
+  "Topic :: System :: Emulators",
+]
+
+[project.urls]
+Source = "https://github.com/iderex/attrappe"
+Issues = "https://github.com/iderex/attrappe/issues"
+
+# The version is declared in exactly one place. The build backend reads the
+# literal out of the package rather than carrying a second copy of it here, so a
+# distribution can disagree with an import only if this line is wrong.
+[tool.hatch.version]
+path = "src/attrappe/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/attrappe"]
+
+# The lint, type and test tool tables belong in this file and not in four more.
+# Each one is added by the issue that introduces its tool, so that the settings
+# arrive with the check that depends on them rather than ahead of it.
