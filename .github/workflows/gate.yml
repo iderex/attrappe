@@ -1,0 +1,73 @@
+# The gate. One workflow, run on every pull request to the mainline and on every
+# push to it, with one job per leg and a check-run name that is quoted elsewhere
+# and must not drift.
+#
+# This file is incomplete on purpose. It carries the `Gate / types` leg and no
+# other, because that is the only leg whose tool exists in this repository. The
+# lint and test legs, and the single local gate command all three legs are meant
+# to run, arrive with the issues that introduce them (#14, #16, #18, #19). A leg
+# that is absent is absent here rather than stubbed green, so a run that covered
+# one leg cannot be read as one that covered three and found nothing.
+#
+# Hardened to the same bar as the guards already in this repository: every action
+# pinned to a full commit hash with the version in a trailing comment, checkout
+# without persisted credentials, read-only permissions declared at the top level
+# and never widened at the workflow level, a timeout on every job, and a
+# concurrency group that cancels a superseded run. Cancelling is safe here
+# because no leg publishes anything.
+name: Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Read-only: no leg writes to the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  types:
+    # The check-run name is this string verbatim, and the slash is part of it.
+    #
+    # A check run is named after the job and after nothing else. The workflow
+    # name is not a prefix: it is shown beside the check in the pull-request UI,
+    # which reads like a prefix and is not one. Measured on this repository
+    # rather than assumed, by asking the API what a run of an earlier version of
+    # this file was actually called:
+    #
+    #     gh api repos/iderex/attrappe/commits/cdf764c/check-runs --jq '.check_runs[].name'
+    #
+    # which answered `types` while the UI showed "Gate / types". The ruleset and
+    # every list of required checks match the API's name, so the slash has to be
+    # inside this value or the name that gets quoted elsewhere does not exist.
+    name: Gate / types
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No step pushes via git, so do not persist the GITHUB_TOKEN in .git/config.
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          # The floor from docs/decisions/0001-implementation-language.md. The
+          # checker is configured for this version in pyproject.toml, and running
+          # it on a newer interpreter would check against a language the
+          # supported floor does not have.
+          python-version: "3.11"
+
+      - name: Install the package and the type checker
+        # Editable so the checker resolves the package the way a contributor's
+        # environment does. The `types` group is where the checker is pinned.
+        run: python -m pip install -e . --group types
+
+      - name: Check types
+        run: python -m mypy
