@@ -9,10 +9,9 @@
 # read as one that covered them all and found nothing.
 #
 # The `wiring` leg reads this file and refuses a `--only` naming a leg the gate
-# command does not have. The other direction is not refused by anything: `tests`
-# is a leg no job here selects, because the check-run name for it and the version
-# matrix behind it are #19's to fix and neither is settled. The gate command
-# prints that gap on every run.
+# command does not have. The other direction is not refused by anything: nothing
+# here would notice a leg that no job selects, and the gate command prints that
+# gap on every run instead. There is no such leg today.
 #
 # An earlier version of this header said which legs existed. That went stale the
 # first time a job was added beside it, so the count is no longer written down:
@@ -131,6 +130,50 @@ jobs:
 
       - name: Run the types leg
         run: python tools/gate.py --only types
+
+  tests:
+    # One check run per interpreter, named `Gate / tests (3.11)` and so on. The
+    # version is inside the name because each of them is its own check: a single
+    # name covering the matrix would be a required check that is green when the
+    # floor passes and something above it does not.
+    #
+    # The versions are the ones pyproject.toml declares as supported classifiers,
+    # and tests/test_the_test_matrix_matches_the_supported_versions.py refuses a
+    # matrix that disagrees with them. Two lists of supported versions with
+    # nothing between them is how a project ends up shipping a classifier for an
+    # interpreter nothing runs on.
+    name: Gate / tests (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      # Every version is run. Stopping the matrix at the first failure would
+      # hide whether a break is in one interpreter or in all of them, which is
+      # the first thing anybody wants to know about a red test job.
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No step pushes via git, so do not persist the GITHUB_TOKEN in .git/config.
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the package and the runner
+        # Editable, so the suite imports the tree it is testing rather than a
+        # copy of it built at install time.
+        run: python -m pip install -e . --group tests
+
+      - name: Run the tests leg
+        # The hardware-bound harness is deselected by `addopts` in
+        # pyproject.toml and never reaches this job.
+        # docs/decisions/0008-headless.md is where that is required.
+        run: python tools/gate.py --only tests
 
   workflows:
     # As with the types job above, the slash is part of the name because a check

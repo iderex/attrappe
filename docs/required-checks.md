@@ -32,6 +32,10 @@ Each of these refuses something. The name is the exact string to enter.
 | `Gate / dependencies` | `.github/workflows/dependency-audit.yml`, job `dependencies` | a dependency in the installed set with a known advisory against it, and an acceptance register entry with no reason, no retirement condition, or naming a finding that is no longer reported | yes |
 | `Gate / injection` | `.github/workflows/gate.yml`, job `injection` | a direct clock read or a module-level random draw inside the package | yes |
 | `Gate / lint` | `.github/workflows/gate.yml`, job `lint` | a file the formatter would rewrite, and a violation of the lint groups selected in pyproject.toml | yes |
+| `Gate / tests (3.11)` | `.github/workflows/gate.yml`, job `tests` | a failing test in the default suite on that interpreter; the hardware-bound harness is deselected and never reaches it | yes |
+| `Gate / tests (3.12)` | `.github/workflows/gate.yml`, job `tests` | a failing test in the default suite on that interpreter; the hardware-bound harness is deselected and never reaches it | yes |
+| `Gate / tests (3.13)` | `.github/workflows/gate.yml`, job `tests` | a failing test in the default suite on that interpreter; the hardware-bound harness is deselected and never reaches it | yes |
+| `Gate / tests (3.14)` | `.github/workflows/gate.yml`, job `tests` | a failing test in the default suite on that interpreter; the hardware-bound harness is deselected and never reaches it | yes |
 | `Gate / types` | `.github/workflows/gate.yml`, job `types` | a type error in the package, the repository tooling or the suite | yes |
 | `Gate / workflows` | `.github/workflows/gate.yml`, job `workflows` | an unpinned action, a workflow-level write, a job without a timeout, a workflow without a concurrency group, a checkout that keeps the token, and a leg selector in gate.yml naming a leg the gate command does not have | yes |
 | `Reject Trojan Source Unicode` | `.github/workflows/unicode-guard.yml`, job `bidi` | a bidirectional or invisible Unicode character in tracked text | yes |
@@ -42,6 +46,14 @@ Each of these refuses something. The name is the exact string to enter.
 `Gate / build / distribution`: yes. The name carries two slashes because a job that calls a reusable workflow produces one check run per job in the workflow it calls, named after both. The release path calls the same workflow, so requiring this requires the job a release is built by.
 
 `Gate / dependencies`: yes, and it is the one whose red run can arrive without a commit. Its workflow also runs on a timer, so the mainline turns red when an advisory is published against a dependency nobody touched.
+
+`Gate / tests (3.11)`: yes, and one per version rather than one for the set. Requiring only the floor leaves the other interpreters advisory, which is the state this matrix exists to leave behind.
+
+`Gate / tests (3.12)`: yes, and one per version rather than one for the set. Requiring only the floor leaves the other interpreters advisory, which is the state this matrix exists to leave behind.
+
+`Gate / tests (3.13)`: yes, and one per version rather than one for the set. Requiring only the floor leaves the other interpreters advisory, which is the state this matrix exists to leave behind.
+
+`Gate / tests (3.14)`: yes, and one per version rather than one for the set. Requiring only the floor leaves the other interpreters advisory, which is the state this matrix exists to leave behind.
 
 `dependency-review`: yes for what it covers, and read what that is: it judges dependencies the change adds and says nothing about an advisory published tomorrow against one already here, which is #48.
 
