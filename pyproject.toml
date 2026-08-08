@@ -20,9 +20,15 @@ dependencies = []
 classifiers = [
   "Development Status :: 1 - Planning",
   "Intended Audience :: Science/Research",
+  # docs/decisions/0001-implementation-language.md says the floor is 3.11 and
+  # the project is tested against 3.11 up to the current release. These are that
+  # list, and they are also the test matrix in .github/workflows/gate.yml: the
+  # suite refuses the two disagreeing, so a classifier here is a claim a check
+  # run stands behind rather than an aspiration.
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Scientific/Engineering",
   "Topic :: System :: Emulators",
 ]

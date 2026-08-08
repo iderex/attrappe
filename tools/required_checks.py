@@ -15,6 +15,7 @@ on this repository and the measurement is quoted in `.github/workflows/gate.yml`
 """
 
 import argparse
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -32,6 +33,12 @@ class Note:
     refuses: str
     candidate: str
 
+
+# The test jobs are a matrix, so their names carry the interpreter and there are
+# as many of them as the matrix has versions. This is the key their shared prose
+# is filed under, and `note_for` matches a real name onto it.
+TESTS = "Gate / tests (<version>)"
+TESTS_NAME = re.compile(r"^Gate / tests \([0-9]+\.[0-9]+\)$")
 
 # One entry per check-run name a job in this tree produces. A name with no entry
 # here fails the generator, which is the case that matters: adding a job is how a
@@ -60,6 +67,22 @@ NOTES: dict[str, Note] = {
     "Gate / injection": Note(
         refuses="a direct clock read or a module-level random draw inside the package",
         candidate="yes",
+    ),
+    # One prose entry for every interpreter in the test matrix rather than one
+    # per version. The versions come from the matrix, `note_for` below hands the
+    # same sentence to each, and adding a version to the matrix therefore adds a
+    # row here without anybody remembering to. Four copies of one sentence would
+    # be a list drifting against the matrix it describes.
+    TESTS: Note(
+        refuses=(
+            "a failing test in the default suite on that interpreter; the hardware-bound "
+            "harness is deselected and never reaches it"
+        ),
+        candidate=(
+            "yes, and one per version rather than one for the set. Requiring only the floor "
+            "leaves the other interpreters advisory, which is the state this matrix exists to "
+            "leave behind"
+        ),
     ),
     "Gate / dependencies": Note(
         refuses=(
@@ -184,6 +207,33 @@ def wants_write(body: dict[Any, Any]) -> bool:
     return isinstance(permissions, dict) and "write" in permissions.values()
 
 
+def expand(name: str, body: dict[Any, Any]) -> list[str]:
+    """Every check-run name one job produces, a matrix job producing several.
+
+    A job with a matrix runs once per combination and each run is its own check
+    run, named after the job with the matrix values substituted. Reading the
+    name literally would put `${{ matrix.python-version }}` in the document as
+    the string to require, which is a check nobody produces.
+
+    Only the list-valued keys are expanded, which is what a plain matrix is.
+    `include` and `exclude` are not read: nothing in this tree uses them, and a
+    job that starts to would come out with an unexpanded name, which `render`
+    refuses by name rather than passing through.
+    """
+    matrix = ((body.get("strategy") or {}).get("matrix")) or {}
+    axes = {key: value for key, value in matrix.items() if isinstance(value, list)}
+    if not axes:
+        return [name]
+    names = [name]
+    for key, values in axes.items():
+        names = [
+            spelling.replace("${{ matrix." + key + " }}", str(value))
+            for spelling in names
+            for value in values
+        ]
+    return names
+
+
 def checks() -> list[Check]:
     """Every check-run name a job in this tree produces.
 
@@ -219,15 +269,16 @@ def checks() -> list[Check]:
                         )
                     )
                 continue
-            found.append(
-                Check(
-                    name=caller,
-                    workflow=path,
-                    job=str(key),
-                    on_pull_request=on_pull_request,
-                    asks_for_write=wants_write(body),
+            for spelling in expand(caller, body):
+                found.append(
+                    Check(
+                        name=spelling,
+                        workflow=path,
+                        job=str(key),
+                        on_pull_request=on_pull_request,
+                        asks_for_write=wants_write(body),
+                    )
                 )
-            )
     return sorted(found, key=lambda check: check.name)
 
 
@@ -239,9 +290,34 @@ def fork_answer(check: Check) -> str:
     return "yes"
 
 
+def note_for(name: str) -> Note:
+    """The prose for a check-run name, with the matrix names filed under one key.
+
+    Raises KeyError for a name nobody wrote prose for, which is what `render`
+    turns into the refusal that adding a job without a sentence produces.
+    """
+    if TESTS_NAME.match(name):
+        return NOTES[TESTS]
+    return NOTES[name]
+
+
+def known(name: str) -> bool:
+    return TESTS_NAME.match(name) is not None or name in NOTES
+
+
 def render() -> str:
     found = checks()
-    missing = sorted({check.name for check in found} - set(NOTES))
+    unexpanded = sorted({check.name for check in found if "${{" in check.name})
+    if unexpanded:
+        raise SystemExit(
+            "an expression survived into a check-run name: "
+            + ", ".join(unexpanded)
+            + "\nA name carrying an expression is a string no check run is ever called, so a "
+            "required-checks entry taken from it would wait for a check that never arrives. "
+            "Widen `expand` in tools/required_checks.py to cover the matrix shape this job uses."
+        )
+
+    missing = sorted({check.name for check in found if not known(check.name)})
     if missing:
         raise SystemExit(
             "no prose for: "
@@ -251,8 +327,8 @@ def render() -> str:
             "missing document."
         )
 
-    refusing = [check for check in found if NOTES[check.name].candidate.startswith("yes")]
-    publishing = [check for check in found if not NOTES[check.name].candidate.startswith("yes")]
+    refusing = [check for check in found if note_for(check.name).candidate.startswith("yes")]
+    publishing = [check for check in found if not note_for(check.name).candidate.startswith("yes")]
 
     lines: list[str] = []
     write = lines.append
@@ -287,14 +363,14 @@ def render() -> str:
     write("| Check-run name | Produced by | What a red run means | Runs on a fork's pull request |")
     write("| --- | --- | --- | --- |")
     for check in refusing:
-        note = NOTES[check.name]
+        note = note_for(check.name)
         write(
             f"| `{check.name}` | `{check.workflow}`, job `{check.job}` "
             f"| {note.refuses} | {fork_answer(check)} |"
         )
     write("")
     for check in refusing:
-        note = NOTES[check.name]
+        note = note_for(check.name)
         if note.candidate != "yes":
             write(f"`{check.name}`: {note.candidate}.")
             write("")
@@ -307,7 +383,7 @@ def render() -> str:
     write("| Check-run name | Produced by | What it does | Why it is not a candidate |")
     write("| --- | --- | --- | --- |")
     for check in publishing:
-        note = NOTES[check.name]
+        note = note_for(check.name)
         write(
             f"| `{check.name}` | `{check.workflow}`, job `{check.job}` "
             f"| {note.refuses} | {note.candidate} |"
