@@ -169,6 +169,12 @@ LEGS: tuple[Leg, ...] = (
         check=check_wiring,
     ),
     Leg(
+        id="required-checks",
+        refuses="a required-checks document that no longer matches the workflow files",
+        cost="the `workflows` dependency group, for the YAML parser",
+        commands=((sys.executable, "tools/required_checks.py", "--check"),),
+    ),
+    Leg(
         id="workflows",
         refuses="an unpinned action, a workflow-level write, a job without a timeout",
         cost="the `workflows` dependency group, for the YAML parser",
@@ -208,7 +214,7 @@ def run(selected: Sequence[str]) -> int:
     print(f"about to run {len(chosen)} of {len(LEGS)} leg(s), in this order:")
     for leg in LEGS:
         mark = "run " if leg.id in selected else "skip"
-        print(f"  {mark} {leg.id:<10} {leg.refuses}")
+        print(f"  {mark} {leg.id:<16} {leg.refuses}")
     print()
 
     outcomes: list[Outcome] = []
@@ -230,7 +236,7 @@ def run(selected: Sequence[str]) -> int:
     print("what this run examined:")
     for outcome in outcomes:
         detail = f"  ({outcome.detail})" if outcome.detail else ""
-        print(f"  {outcome.leg.id:<10} {outcome.state}{detail}")
+        print(f"  {outcome.leg.id:<16} {outcome.state}{detail}")
 
     failed = [outcome for outcome in outcomes if outcome.state == FAILED]
     if failed:
@@ -263,7 +269,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if arguments.list:
         for leg in LEGS:
-            print(f"{leg.id:<10} {leg.refuses}\n           needs {leg.cost}")
+            print(f"{leg.id:<16} {leg.refuses}\n{'':<16} needs {leg.cost}")
         return 0
 
     known = {leg.id for leg in LEGS}
