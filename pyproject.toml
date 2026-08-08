@@ -166,6 +166,31 @@ addopts = [
   "-ra",
 ]
 
+# Warnings are errors. The type checker and the linter already fail on their
+# findings; this is the same property over the warnings only a run produces, and
+# those are the interesting ones: an unclosed socket, work nobody awaited, and a
+# deprecation that becomes a removal on somebody else's release day. A warning
+# that only scrolls past is one nobody reads once there are two of them.
+filterwarnings = [
+  # Everything, unless an entry below says otherwise.
+  "error",
+  # Entries go here, each one preceded by a comment naming the source and the
+  # reason it is outside this project's control, and each one a specific matcher
+  # rather than a category:
+  #
+  #     ignore:<the exact message>:<Category>:<the module that raises it>
+  #
+  # `ignore::DeprecationWarning` is refused by the test below, because a category
+  # silences the warning this project is waiting for along with the one it cannot
+  # fix. The reason is what makes the entry retirable: without it nobody can tell
+  # whether it still applies.
+  #
+  # The list is empty. tests/test_the_warning_filters_are_argued.py reads this
+  # block and refuses an entry with no comment above it or with no message part,
+  # and it proves it does so against fixtures rather than against this list,
+  # which has nothing in it to judge.
+]
+
 [tool.mypy]
 # The floor from docs/decisions/0001-implementation-language.md. Checking against
 # a newer version would accept syntax the supported floor rejects.
