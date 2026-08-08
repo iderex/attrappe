@@ -148,7 +148,7 @@ jobs:
         # command does not have, so a typo in one of these steps is a refusal
         # rather than a job that passes having run nothing. It is here because
         # this is the job that already installs the YAML parser it needs.
-        run: python tools/gate.py --only wiring,workflows
+        run: python tools/gate.py --only wiring,workflows,required-checks
 
   injection:
     # As with the jobs above, the slash is part of the name because a check run
