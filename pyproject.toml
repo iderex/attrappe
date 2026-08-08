@@ -45,6 +45,11 @@ types = ["mypy>=2.3.0"]
 # refuses valid work. There is no YAML parser in the standard library, so the
 # dependency is forced rather than chosen, and it is held to one dev group.
 workflows = ["pyyaml>=6.0", "types-pyyaml>=6.0"]
+# Ruff because it is the formatter and the linter in one binary, configured out
+# of this file, with no runtime beyond the one already chosen. Two tools would
+# mean two configurations that can disagree about the same bytes, and a
+# disagreement between a formatter and a linter is settled by whoever ran last.
+lint = ["ruff>=0.16.2"]
 
 # The version is declared in exactly one place. The build backend reads the
 # literal out of the package rather than carrying a second copy of it here, so a
@@ -58,6 +63,58 @@ packages = ["src/attrappe"]
 # The lint, type and test tool tables belong in this file and not in four more.
 # Each one is added by the issue that introduces its tool, so that the settings
 # arrive with the check that depends on them rather than ahead of it.
+
+[tool.ruff]
+# The floor from docs/decisions/0001-implementation-language.md. The rewrites the
+# linter proposes are chosen against the oldest supported syntax, so a fix it
+# offers cannot be one the floor refuses.
+target-version = "py311"
+
+# The number lives here rather than in anybody's head, and it is 100 rather than
+# the tool's default of 88 for a measured reason. At 88 the formatter leaves five
+# lines it cannot shorten: they are string literals at a deep indentation, and
+# the formatter does not split a string. On a throwaway checkout of c05e915,
+# which the next command rewrites in place:
+#
+#     ruff format --line-length 88 . && ruff check --select E501 --line-length 88 .
+#     Found 5 errors.
+#     ruff format --line-length 100 . && ruff check --select E501 --line-length 100 .
+#     All checks passed!
+#
+# A limit that needs five suppressions on the day it lands is a limit nobody
+# obeys. At 100 the formatter reaches every line in the tree and E501 refuses
+# what is left over.
+line-length = 100
+
+[tool.ruff.lint]
+# One group per entry, each with the reason it is on. A rule set copied wholesale
+# with no comment is a rule set nobody can argue with later, and the argument is
+# the point: a group here is one somebody decided to keep.
+select = [
+  # Pyflakes. Unused imports and unused local names, undefined names, an f-string
+  # with no placeholder, and `is` against a literal. This is the group that finds
+  # what a refactor left behind, and the leftovers of a refactor are exactly what
+  # a reader assumes is still load-bearing.
+  "F",
+  # pycodestyle errors. A bare `except:`, which swallows the interrupt that stops
+  # a soak run as readily as the error it was aimed at; `== None` and `== True`,
+  # which read as the identity test they are not; and the line limit above. These
+  # are mistakes that read correctly and behave differently.
+  "E",
+  # pycodestyle warnings. Trailing whitespace and a missing final newline. Both
+  # survive a formatter nobody ran and both put lines in a later diff that
+  # nobody changed, which is what makes a review read the wrong hunk.
+  "W",
+  # isort. Import order, so an added import lands in one place rather than
+  # wherever the cursor was, and two branches adding an import do not conflict
+  # over which line it went on.
+  "I",
+  # flake8-bugbear. The mutable default argument first, because a default list
+  # shared across every call is the bug this project would meet as a fault
+  # schedule that remembers the last run. The rest of the group has the same
+  # shape: legal code that reads as intended and does something else.
+  "B",
+]
 
 [tool.mypy]
 # The floor from docs/decisions/0001-implementation-language.md. Checking against

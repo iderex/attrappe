@@ -276,7 +276,9 @@ class Case:
 # near-misses are the point. They are the one-character mistakes somebody
 # actually makes, and a rule that refuses them gets switched off.
 CASES = (
-    Case("a bare import of the time module", "import time\n", frozenset({"no-direct-clock-module"})),
+    Case(
+        "a bare import of the time module", "import time\n", frozenset({"no-direct-clock-module"})
+    ),
     Case("the same fixture without that line", "\n", frozenset()),
     Case(
         "the clock handed in, and a local name ending in time",
@@ -286,20 +288,52 @@ CASES = (
         "    return clock.time() - started\n",
         frozenset(),
     ),
-    Case("a name lifted out of the time module", "from time import monotonic\n", frozenset({"no-direct-clock-module"})),
-    Case("the time module under another name", "import time as wall\n", frozenset({"no-direct-clock-module"})),
-    Case("a submodule of the clock package", "import datetime.timezone\n", frozenset({"no-direct-clock-module"})),
-    Case("the other module that reads the host clock", "import datetime\n", frozenset({"no-direct-clock-module"})),
-    Case("a module inside this package that happens to be named time", "from .time import Clock\n", frozenset()),
+    Case(
+        "a name lifted out of the time module",
+        "from time import monotonic\n",
+        frozenset({"no-direct-clock-module"}),
+    ),
+    Case(
+        "the time module under another name",
+        "import time as wall\n",
+        frozenset({"no-direct-clock-module"}),
+    ),
+    Case(
+        "a submodule of the clock package",
+        "import datetime.timezone\n",
+        frozenset({"no-direct-clock-module"}),
+    ),
+    Case(
+        "the other module that reads the host clock",
+        "import datetime\n",
+        frozenset({"no-direct-clock-module"}),
+    ),
+    Case(
+        "a module inside this package that happens to be named time",
+        "from .time import Clock\n",
+        frozenset(),
+    ),
     Case(
         "a module-level draw",
         "import random\n\nnoise = random.gauss(0.0, 1.0)\n",
         frozenset({"no-module-level-random"}),
     ),
     Case("the same fixture with the draw removed", "import random\n", frozenset()),
-    Case("the explicit generator, constructed", "import random\n\nrng = random.Random(4)\n", frozenset()),
-    Case("the explicit generator, imported", "from random import Random\n\nrng = Random(4)\n", frozenset()),
-    Case("a draw from a generator handed in", "def noise(rng):\n    return rng.gauss(0.0, 1.0)\n", frozenset()),
+    Case(
+        "the explicit generator, constructed",
+        "import random\n\nrng = random.Random(4)\n",
+        frozenset(),
+    ),
+    Case(
+        "the explicit generator, imported",
+        "from random import Random\n\nrng = Random(4)\n",
+        frozenset(),
+    ),
+    Case(
+        "a draw from a generator handed in",
+        "def noise(rng):\n    return rng.gauss(0.0, 1.0)\n",
+        frozenset(),
+    ),
     Case(
         "a draw lifted out of the module",
         "from random import gauss\n",
@@ -386,9 +420,7 @@ def audit() -> int:
         except SyntaxError as broken:
             # An unparsable file is not a pass. The audit cannot say what it
             # contains, and saying nothing is what a fail-open looks like.
-            findings.append(
-                Finding(path, "source-parses", f"line {broken.lineno}: {broken.msg}")
-            )
+            findings.append(Finding(path, "source-parses", f"line {broken.lineno}: {broken.msg}"))
             continue
         for finding in (*check_clock(path, tree), *check_random(path, tree)):
             if (finding.path, finding.rule) in waived:

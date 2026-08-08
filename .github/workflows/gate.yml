@@ -3,11 +3,11 @@
 # and must not drift.
 #
 # This file is incomplete on purpose. It carries the legs whose tool exists in
-# this repository and no others. The lint and test legs, and the single local
-# command the legs are meant to run, arrive with the issues that introduce them
-# (#14, #16, #18, #19). A leg that is absent is absent here rather than stubbed
-# green, so a run that covered some legs cannot be read as one that covered them
-# all and found nothing.
+# this repository and no others. The test leg, and the single local command the
+# legs are meant to run, arrive with the issues that introduce them (#16, #18,
+# #19). A leg that is absent is absent here rather than stubbed green, so a run
+# that covered some legs cannot be read as one that covered them all and found
+# nothing.
 #
 # The two sentences above said `Gate / types` and no other. That was true when it
 # was written and stopped being true when the workflow audit landed beside it, so
@@ -38,6 +38,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    # The check-run name is this string verbatim, and the slash is part of it,
+    # for the reason set out on the types job below.
+    name: Gate / lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No step pushes via git, so do not persist the GITHUB_TOKEN in .git/config.
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          # The floor from docs/decisions/0001-implementation-language.md, which
+          # is also what `target-version` in pyproject.toml names. Linting on a
+          # newer interpreter would judge against a language the floor has not
+          # got.
+          python-version: "3.11"
+
+      - name: Install the linter
+        # The package is not installed: the linter reads source and imports
+        # nothing from it. One group, one dependency.
+        run: python -m pip install --group lint
+
+      - name: Check formatting
+        # Check mode, so the leg reports the difference rather than writing it.
+        # `--diff` puts the change a contributor has to make in the job log,
+        # which is the whole repair, rather than a count of files.
+        run: python -m ruff format --check --diff
+
+      - name: Lint
+        # Separate from the step above so the log says which of the two refused.
+        # No `--fix`: a gate that edits the tree it is judging has judged a tree
+        # nobody pushed.
+        run: python -m ruff check --no-fix
+
   types:
     # The check-run name is this string verbatim, and the slash is part of it.
     #

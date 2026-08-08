@@ -122,7 +122,11 @@ def check_pins(path: str) -> list[Finding]:
             continue
         if not PINNED.match(reference):
             findings.append(
-                Finding(path, "pinned-to-a-hash", f"line {number}: {reference} is not a 40-character hash")
+                Finding(
+                    path,
+                    "pinned-to-a-hash",
+                    f"line {number}: {reference} is not a 40-character hash",
+                )
             )
         elif not VERSION_COMMENT.search(line):
             findings.append(
@@ -151,7 +155,11 @@ def check_workflow_permissions(path: str, document: dict[Any, Any]) -> list[Find
         return (
             []
             if permissions == "read-all"
-            else [Finding(path, "no-workflow-level-write", f"workflow-level permissions: {permissions}")]
+            else [
+                Finding(
+                    path, "no-workflow-level-write", f"workflow-level permissions: {permissions}"
+                )
+            ]
         )
     written = sorted(scope for scope, level in permissions.items() if level == "write")
     if written:
@@ -198,7 +206,9 @@ def check_concurrency(path: str, document: dict[Any, Any]) -> list[Finding]:
         return [Finding(path, "workflow-has-a-concurrency-group", "no concurrency block")]
     group = concurrency if isinstance(concurrency, str) else concurrency.get("group")
     if not group:
-        return [Finding(path, "workflow-has-a-concurrency-group", "concurrency block names no group")]
+        return [
+            Finding(path, "workflow-has-a-concurrency-group", "concurrency block names no group")
+        ]
     return []
 
 
@@ -222,16 +232,28 @@ def load_exceptions() -> tuple[list[Waiver], list[Finding]]:
         reason = str(entry.get("reason", "")).strip()
         where = f"{path or '<no workflow>'} / {rule or '<no rule>'}"
         if not reason:
-            findings.append(Finding(str(EXCEPTIONS_PATH), "exception-carries-a-reason", f"{where} has no reason"))
+            findings.append(
+                Finding(
+                    str(EXCEPTIONS_PATH), "exception-carries-a-reason", f"{where} has no reason"
+                )
+            )
             continue
         if rule not in RULES:
             findings.append(
-                Finding(str(EXCEPTIONS_PATH), "exception-names-a-real-rule", f"{where} names no rule this audit has")
+                Finding(
+                    str(EXCEPTIONS_PATH),
+                    "exception-names-a-real-rule",
+                    f"{where} names no rule this audit has",
+                )
             )
             continue
         if path not in tracked:
             findings.append(
-                Finding(str(EXCEPTIONS_PATH), "exception-names-a-tracked-workflow", f"{where} names no tracked file")
+                Finding(
+                    str(EXCEPTIONS_PATH),
+                    "exception-names-a-tracked-workflow",
+                    f"{where} names no tracked file",
+                )
             )
             continue
         exceptions.append(Waiver(path, rule, reason))
@@ -247,7 +269,9 @@ def audit() -> int:
     for path in paths:
         document = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
         if triggers(document) is None:
-            findings.append(Finding(path, "pinned-to-a-hash", "file has no triggers and may not be a workflow"))
+            findings.append(
+                Finding(path, "pinned-to-a-hash", "file has no triggers and may not be a workflow")
+            )
         for finding in (
             *check_pins(path),
             *check_workflow_permissions(path, document),
