@@ -50,6 +50,11 @@ workflows = ["pyyaml>=6.0", "types-pyyaml>=6.0"]
 # mean two configurations that can disagree about the same bytes, and a
 # disagreement between a formatter and a linter is settled by whoever ran last.
 lint = ["ruff>=0.16.2"]
+# pytest because the marker registry and the selection this project needs are
+# configuration in this file rather than a runner somebody wrote, and because the
+# hardware-bound exclusion is expressed as a marker expression the runner already
+# has. No plugin: every plugin is a second thing deciding what runs.
+tests = ["pytest>=9.1.1"]
 
 # The version is declared in exactly one place. The build backend reads the
 # literal out of the package rather than carrying a second copy of it here, so a
@@ -116,14 +121,65 @@ select = [
   "B",
 ]
 
+[tool.pytest.ini_options]
+# The version the marker registry and the selection below were written against.
+# An older runner accepts `markers` and ignores parts of `addopts`, which would
+# be a suite that runs everything while this file says it does not.
+minversion = "9.1"
+
+# One place the suite is found from, so `pytest` with no arguments and the gate
+# select the same set. docs/decisions/0008-headless.md asks for exactly that:
+# the default suite and the gate's suite are the same suite, selected the same
+# way, and not two that happen to agree.
+testpaths = ["tests"]
+
+# The marker registry. A marker is registered here or it is refused, which is
+# what `--strict-markers` below is for.
+markers = [
+  # Named for what it means rather than for where it lives.
+  # docs/decisions/0008-headless.md defines the membership: anything that cannot
+  # meet all six constraints of the default suite, which today is a serial port
+  # pair, the USB test-and-measurement class, a comparison against a physical
+  # instrument, and a soak run long enough to need real elapsed time. A test
+  # carrying this marker never gates a merge.
+  "hardware_bound: needs something the default suite refuses, and is deselected by default",
+]
+
+addopts = [
+  # The exclusion, by configuration rather than by a naming convention or by a
+  # flag a contributor has to remember. This one entry is the guard. Delete it
+  # and tests/test_the_hardware_bound_exclusion.py goes red, because the marked
+  # fixture it writes then runs and fails.
+  "-m",
+  "not hardware_bound",
+  # An unregistered marker stops the run instead of warning. A warning in a
+  # green run is not a refusal, and a one-character typo in `hardware_bound` is
+  # exactly the mistake that would put a hardware-bound test in the default
+  # suite with nobody the wiser.
+  "--strict-markers",
+  # The same for an unknown key or a misspelled value in the block above. A
+  # setting nobody applied and nobody refused is the quietest way to have a
+  # configuration that does not do what it says.
+  "--strict-config",
+  # A summary of everything that was not a plain pass, so a deselection or a
+  # skip appears in the output rather than only in the counts.
+  "-ra",
+]
+
 [tool.mypy]
 # The floor from docs/decisions/0001-implementation-language.md. Checking against
 # a newer version would accept syntax the supported floor rejects.
 python_version = "3.11"
 mypy_path = "src"
-# Both the package and the repository tooling. A script that gates a merge is
-# not exempt from the check it gates with.
-files = ["src/attrappe", "tools"]
+# The package, the repository tooling and the suite. A script that gates a merge
+# is not exempt from the check it gates with, and neither is a test: a test that
+# does not type-check is a test whose subject may have moved underneath it.
+files = ["src/attrappe", "tools", "tests"]
+# Module names are computed from the directory a file sits in rather than from
+# its basename. The suite has two files called `conftest.py`, one per harness,
+# which is how pytest names them and is not negotiable; without this the checker
+# reads them as one module named twice and stops before checking anything.
+explicit_package_bases = true
 
 # Strictest practical mode. `strict` is the bundle mypy itself maintains, so the
 # set grows when mypy grows it rather than drifting against a list copied here
