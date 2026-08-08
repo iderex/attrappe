@@ -10,6 +10,6 @@ sessions. ``impairment`` holds the physical and failure behaviour. ``profile``
 loads and validates a device profile.
 """
 
-__version__ = "0.1.0"
+__version__  =  "0.1.0"
 
 __all__ = ["__version__"]
