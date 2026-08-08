@@ -42,7 +42,7 @@ and the command tells you which group a leg needs when it reports a leg it did
 not run. All of them at once, in a virtual environment:
 
 ```
-python -m pip install -e .   --group lint --group types --group workflows --group tests --group audit
+python -m pip install -e .   --group lint --group types --group workflows --group tests --group audit --group build
 ```
 
 The runtime dependency list is empty and every addition to it is argued in the

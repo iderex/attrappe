@@ -214,6 +214,12 @@ LEGS: tuple[Leg, ...] = (
         commands=((sys.executable, "tools/dependency_audit.py"),),
     ),
     Leg(
+        id="build",
+        refuses="two builds of one commit whose archives differ in content",
+        cost="the `build` dependency group, and it writes dist/",
+        commands=((sys.executable, "tools/build_distribution.py"),),
+    ),
+    Leg(
         id="tests",
         refuses="a failing test in the default suite",
         cost="the package installed and the `tests` dependency group",

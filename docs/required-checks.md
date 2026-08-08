@@ -28,6 +28,7 @@ Each of these refuses something. The name is the exact string to enter.
 | --- | --- | --- | --- |
 | `Audit workflows (zizmor)` | `.github/workflows/zizmor.yml`, job `zizmor` | a workflow-security finding the audit tool reports at or above its threshold | runs, but the job asks for a write permission a fork's pull request is not granted |
 | `DCO sign-off` | `.github/workflows/dco.yml`, job `dco` | a commit with no Signed-off-by trailer matching its author | yes |
+| `Gate / build / distribution` | `.github/workflows/gate.yml calling .github/workflows/build.yml`, job `build calling distribution` | two builds of one commit whose archives differ in content, a build that produced no artefact, and an upload that found nothing | yes |
 | `Gate / dependencies` | `.github/workflows/dependency-audit.yml`, job `dependencies` | a dependency in the installed set with a known advisory against it, and an acceptance register entry with no reason, no retirement condition, or naming a finding that is no longer reported | yes |
 | `Gate / injection` | `.github/workflows/gate.yml`, job `injection` | a direct clock read or a module-level random draw inside the package | yes |
 | `Gate / lint` | `.github/workflows/gate.yml`, job `lint` | a file the formatter would rewrite, and a violation of the lint groups selected in pyproject.toml | yes |
@@ -37,6 +38,8 @@ Each of these refuses something. The name is the exact string to enter.
 | `dependency-review` | `.github/workflows/dependency-review.yml`, job `dependency-review` | a dependency added in the change with a known advisory against it | yes |
 
 `Audit workflows (zizmor)`: yes for a pull request from this repository. Its job asks for a write permission so that it can upload findings, a fork's pull request is not granted one, and the upload step fails there. Requiring it would make every fork's pull request red for a reason that is not about the change.
+
+`Gate / build / distribution`: yes. The name carries two slashes because a job that calls a reusable workflow produces one check run per job in the workflow it calls, named after both. The release path calls the same workflow, so requiring this requires the job a release is built by.
 
 `Gate / dependencies`: yes, and it is the one whose red run can arrive without a commit. Its workflow also runs on a timer, so the mainline turns red when an advisory is published against a dependency nobody touched.
 

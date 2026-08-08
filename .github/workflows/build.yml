@@ -1,0 +1,80 @@
+# The build, as one job two paths call rather than two paths that each build.
+#
+# It is a reusable workflow and has no trigger of its own, so it never runs
+# because something happened. The gate calls it on every pull request and every
+# push to the mainline. The release path calls the same job with the same inputs
+# and publishes what comes out, and when that workflow exists it will restate
+# none of the steps below. A release built by a second set of steps is an
+# artefact nobody tested.
+#
+# What it runs is the gate command with one leg selected, like every other job
+# here, so the tools and their flags stay in tools/gate.py.
+#
+# Hardened to the same bar as every other workflow here: actions pinned to a full
+# commit hash with the version in a trailing comment, checkout without persisted
+# credentials, read-only permissions declared at the top level and never widened
+# at the job level, and a timeout on the job.
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: The interpreter the distribution is built with.
+        required: true
+        type: string
+      retention-days:
+        description: How long the uploaded artefacts are kept.
+        required: false
+        default: 7
+        type: number
+
+# Read-only: the build reads the tree and writes into the workspace.
+permissions:
+  contents: read
+
+# The caller's own concurrency group is what cancels a superseded run. This one
+# is here because the audit requires every workflow to declare a group, and it is
+# keyed by the caller so that a called run is cancelled with its caller rather
+# than separately from it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-build
+  cancel-in-progress: true
+
+jobs:
+  distribution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No step pushes via git, so do not persist the GITHUB_TOKEN in .git/config.
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install the build frontend
+        # The package is not installed. The frontend makes its own isolated
+        # environment for the backend, which is the point of using it rather
+        # than calling the backend here.
+        run: python -m pip install --group build
+
+      - name: Run the build leg
+        # Builds twice and refuses if the two disagree in content. `dist/` is
+        # left holding the first build, which is what the next step uploads.
+        run: python tools/gate.py --only build
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: distribution-${{ inputs.python-version }}
+          path: dist/
+          retention-days: ${{ inputs.retention-days }}
+          # An upload that found nothing is a failure rather than an empty
+          # artefact somebody downloads later and cannot explain. It is the
+          # second line here rather than the first: the leg above refuses a
+          # build that produced no artefact, and this refuses the case where
+          # something removed them between the two steps.
+          if-no-files-found: error

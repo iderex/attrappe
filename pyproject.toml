@@ -61,6 +61,10 @@ tests = ["pytest>=9.1.1"]
 # packaging authority rather than a service, so the leg runs from the same
 # command as every other leg instead of depending on something to call in.
 audit = ["pip-audit>=2.10.1"]
+# The build frontend, so that the distribution is produced the way an installer
+# would produce it rather than by calling the backend directly. It is what makes
+# the two-build comparison a comparison of what actually ships.
+build = ["build>=1.2"]
 
 # The version is declared in exactly one place. The build backend reads the
 # literal out of the package rather than carrying a second copy of it here, so a
