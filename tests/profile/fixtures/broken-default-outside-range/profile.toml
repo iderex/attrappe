@@ -1,0 +1,28 @@
+# One defect: the parameter's declared range does not contain its own default.
+# Everything else here is valid, so the loader is expected to report exactly one
+# problem and to name `parameter[0].default`.
+
+[identity]
+manufacturer = "Attrappe"
+model = "EMULATED-DMM-BROKEN"
+serial = "0000000003"
+firmware = "0.1.0"
+
+[error_queue]
+depth = 8
+
+[[node]]
+path = "SENSE"
+short = "SENS"
+
+[[node]]
+path = "SENSE:VOLTAGE"
+short = "VOLT"
+
+[[parameter]]
+node = "SENSE:VOLTAGE"
+name = "range"
+type = "numeric"
+minimum = 0.1
+maximum = 10.0
+default = 100.0

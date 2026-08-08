@@ -1,0 +1,127 @@
+# A profile the loader accepts. Everything in it is invented.
+#
+# The manufacturer and the model are not a real instrument's. Whether a shipped
+# profile may name a real manufacturer and model is entry 2 of #1 and is the
+# maintainer's to answer, so a fixture that named one would be assuming an
+# answer to an open question. A fixture does not need a real name to exercise a
+# loader, and this one is marked as an emulator in the model field so nothing
+# reading it mistakes it for a device.
+
+[identity]
+manufacturer = "Attrappe"
+model = "EMULATED-DMM-1"
+serial = "0000000001"
+firmware = "0.1.0"
+
+[error_queue]
+# The depth the queue in #23 is built to. Small on purpose: an overflow test
+# against a depth of several hundred is a slow test that proves the same thing.
+depth = 16
+
+# The command tree. One entry per mnemonic, `path` in long forms from the root
+# down, `short` the abbreviation a real instrument also accepts. A node's parent
+# is declared before it, because a node whose parent is missing cannot be placed.
+
+[[node]]
+path = "MEASURE"
+short = "MEAS"
+
+[[node]]
+path = "MEASURE:VOLTAGE"
+short = "VOLT"
+
+[[node]]
+path = "MEASURE:VOLTAGE:DC"
+short = "DC"
+
+[[node]]
+path = "MEASURE:CURRENT"
+short = "CURR"
+
+[[node]]
+path = "MEASURE:CURRENT:DC"
+short = "DC"
+
+[[node]]
+path = "CONFIGURE"
+short = "CONF"
+
+[[node]]
+path = "CONFIGURE:VOLTAGE"
+short = "VOLT"
+
+[[node]]
+path = "CONFIGURE:VOLTAGE:DC"
+short = "DC"
+
+[[node]]
+path = "SENSE"
+short = "SENS"
+
+[[node]]
+path = "SENSE:VOLTAGE"
+short = "VOLT"
+
+[[node]]
+path = "SENSE:VOLTAGE:DC"
+short = "DC"
+
+[[node]]
+path = "SENSE:VOLTAGE:DC:RANGE"
+short = "RANG"
+
+[[node]]
+path = "SENSE:VOLTAGE:DC:NPLCYCLES"
+short = "NPLC"
+
+# The parameter table. Each entry names the node it hangs off, its type, and the
+# range its type expresses: minimum and maximum for a number, a choice list for
+# character data, and neither for a boolean or a string.
+
+[[parameter]]
+node = "SENSE:VOLTAGE:DC:RANGE"
+name = "value"
+type = "numeric"
+minimum = 0.1
+maximum = 1000.0
+default = 10.0
+units = "V"
+survives_reset = false
+
+[[parameter]]
+node = "SENSE:VOLTAGE:DC:NPLCYCLES"
+name = "value"
+type = "numeric"
+minimum = 0.02
+maximum = 100.0
+default = 10.0
+survives_reset = true
+
+[[parameter]]
+node = "MEASURE:VOLTAGE:DC"
+name = "resolution"
+type = "numeric"
+minimum = 1e-7
+maximum = 1e-3
+default = 1e-5
+units = "V"
+
+[[parameter]]
+node = "CONFIGURE:VOLTAGE:DC"
+name = "autorange"
+type = "character"
+choices = ["ON", "OFF", "ONCE"]
+default = "ON"
+
+[[parameter]]
+node = "SENSE:VOLTAGE:DC"
+name = "autozero"
+type = "boolean"
+default = true
+survives_reset = true
+
+[[parameter]]
+node = "SENSE"
+name = "label"
+type = "string"
+default = "bench"

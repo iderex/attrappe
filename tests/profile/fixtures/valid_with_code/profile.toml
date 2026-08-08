@@ -1,0 +1,20 @@
+# The same shape as `valid`, cut to one branch, and carrying the optional code
+# half so that a test can prove `load_profile` does not execute it and
+# `load_code_half` does.
+
+[identity]
+manufacturer = "Attrappe"
+model = "EMULATED-DMM-2"
+serial = "0000000002"
+firmware = "0.1.0"
+
+[error_queue]
+depth = 4
+
+[[node]]
+path = "SENSE"
+short = "SENS"
+
+[[node]]
+path = "SENSE:VOLTAGE"
+short = "VOLT"

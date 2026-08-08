@@ -1,0 +1,23 @@
+# One defect: `SENSE:VOLTAGE` is declared twice. Exactly one problem, naming
+# `node[2].path` and the earlier entry it collides with.
+
+[identity]
+manufacturer = "Attrappe"
+model = "EMULATED-DMM-BROKEN"
+serial = "0000000005"
+firmware = "0.1.0"
+
+[error_queue]
+depth = 8
+
+[[node]]
+path = "SENSE"
+short = "SENS"
+
+[[node]]
+path = "SENSE:VOLTAGE"
+short = "VOLT"
+
+[[node]]
+path = "SENSE:VOLTAGE"
+short = "VOLT"

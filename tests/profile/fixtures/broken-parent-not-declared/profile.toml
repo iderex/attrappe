@@ -1,0 +1,20 @@
+# One defect: `SENSE:VOLTAGE:DC` names a parent, `SENSE:VOLTAGE`, that nothing
+# declares, so the node cannot be placed in a tree. Exactly one problem, naming
+# `node[1].path`.
+
+[identity]
+manufacturer = "Attrappe"
+model = "EMULATED-DMM-BROKEN"
+serial = "0000000006"
+firmware = "0.1.0"
+
+[error_queue]
+depth = 8
+
+[[node]]
+path = "SENSE"
+short = "SENS"
+
+[[node]]
+path = "SENSE:VOLTAGE:DC"
+short = "DC"
