@@ -75,8 +75,9 @@ NOTES: dict[str, Note] = {
     # be a list drifting against the matrix it describes.
     TESTS: Note(
         refuses=(
-            "a failing test in the default suite on that interpreter; the hardware-bound "
-            "harness is deselected and never reaches it"
+            "a failing test in the default suite on that interpreter, and a coverage total "
+            "below the floor in pyproject.toml; the hardware-bound harness is deselected and "
+            "never reaches it"
         ),
         candidate=(
             "yes, and one per version rather than one for the set. Requiring only the floor "
