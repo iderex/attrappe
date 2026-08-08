@@ -19,7 +19,7 @@ the command that produced it, run against the tracked tree, and a reader who
 doubts a line runs the command rather than trusting the sentence. The properties
 themselves do not drift, because they are the target and not an observation.
 
-Measured at `7ff574506db2f8266989932f3ab1c49c32bab192`, which is the commit the
+Measured at `d2c2af3d6162fa5ca9bc56c5ff7b9c9bc852aea8`, which is the commit the
 change carrying this measurement is based on rather than the commit it produces.
 That is sound here and would not be in general: every command below reads
 `.github/workflows/`, `pyproject.toml` or `tests/`, and none of them reads
@@ -34,18 +34,28 @@ failure the paragraph above describes happening to this document. Properties 1,
 refuses a stale standing, and the section at the end that says so is the only
 warning a reader had.
 
+The same four moved again at `d2c2af3`, and this time the change that moved them
+is the one re-measuring them. The gate gained a third leg, which refuses direct
+clock and randomness use inside the package: `.github/workflows/gate.yml` grew a
+job, so the job list in properties 1 and 10 grew, the pinned-reference count in
+property 7 grew by two, and the line number quoted in property 2 moved down six
+lines. None of the ten properties moved. That is the distinction this section is
+about: the standing is an observation and it went stale within one change of
+being written, while the target did not move at all.
+
 ## The properties
 
 ### 1. Build and test run on every pull request to the mainline and on every push to it
 
-Partly met. One workflow runs on both events and it carries two legs, the type
-check and the workflow audit. Neither builds a distribution and neither runs a
-test, so the count of legs went up and this property did not move.
+Partly met. One workflow runs on both events and it carries three legs, the type
+check, the workflow audit and the injection audit. None of them builds a
+distribution and none of them runs a test, so the count of legs went up twice now
+and this property has not moved either time.
 
 ```
 $ python -c "import yaml,sys; d=yaml.safe_load(open('.github/workflows/gate.yml')); print(list(d[True].keys())); print(list(d['jobs']))"
 ['pull_request', 'push']
-['types', 'workflows']
+['types', 'workflows', 'injection']
 $ git grep -nEi 'coverage|pytest|--cov|python -m build|hatch build' -- .github/workflows/; echo "exit=$?"
 exit=1
 ```
@@ -68,11 +78,16 @@ one tool that does run is the type checker, and it fails the job on any error:
 
 ```
 $ git grep -n 'python -m mypy' -- .github/workflows/gate.yml
-.github/workflows/gate.yml:75:        run: python -m mypy
+.github/workflows/gate.yml:81:        run: python -m mypy
 ```
 
 A non-zero exit fails the step, and mypy exits non-zero on any error. That is one
 tool, not the property.
+
+The two audits in the same workflow also exit non-zero on a finding, and neither
+is a compiler warning. A warning is what a tool emits while still succeeding, and
+nothing in this repository emits one yet, so the property has nothing to bite on
+rather than being satisfied by three tools that fail loudly.
 
 Closed by #50.
 
@@ -124,19 +139,20 @@ Closed by #51.
 
 ### 7. Every action reference is pinned to a full commit hash with the version in a trailing comment
 
-Met, and guarded since #53 landed. Fifteen references across six workflow files,
+Met, and guarded since #53 landed. Seventeen references across six workflow files,
 and none of them fails the shape:
 
 ```
 $ git grep -hE '^\s*(- )?uses:' -- .github/workflows/ | wc -l
-15
+17
 $ git grep -hE '^\s*(- )?uses:' -- .github/workflows/ | grep -vE '@[0-9a-f]{40} # v'; echo "exit=$?"
 exit=1
 ```
 
-The count moved from thirteen because the gate gained a second job. The shape
-held across the addition, which is what the second command says and what the
-first one on its own would not.
+The count moved from thirteen to fifteen when the gate gained a second job, and
+from fifteen to seventeen when it gained a third. The shape held across both
+additions, which is what the second command says and what the first one on its
+own would not.
 
 The guarded half is what changed. When this standing was first written, nothing
 in the repository refused a sixteenth reference written as a tag except the
@@ -240,6 +256,7 @@ for f in sys.stdin.read().split():
 .github/workflows/gate.yml top: {'contents': 'read'}
    job types perms: None timeout: 10
    job workflows perms: None timeout: 5
+   job injection perms: None timeout: 5
 .github/workflows/scorecard.yml top: {'contents': 'read'}
    job analysis perms: {'contents': 'read', 'security-events': 'write', 'id-token': 'write'} timeout: 15
 .github/workflows/unicode-guard.yml top: {'contents': 'read'}
