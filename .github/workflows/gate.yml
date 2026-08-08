@@ -2,12 +2,18 @@
 # push to it, with one job per leg and a check-run name that is quoted elsewhere
 # and must not drift.
 #
-# This file is incomplete on purpose. It carries the `Gate / types` leg and no
-# other, because that is the only leg whose tool exists in this repository. The
-# lint and test legs, and the single local gate command all three legs are meant
-# to run, arrive with the issues that introduce them (#14, #16, #18, #19). A leg
-# that is absent is absent here rather than stubbed green, so a run that covered
-# one leg cannot be read as one that covered three and found nothing.
+# This file is incomplete on purpose. It carries the legs whose tool exists in
+# this repository and no others. The lint and test legs, and the single local
+# command the legs are meant to run, arrive with the issues that introduce them
+# (#14, #16, #18, #19). A leg that is absent is absent here rather than stubbed
+# green, so a run that covered some legs cannot be read as one that covered them
+# all and found nothing.
+#
+# The two sentences above said `Gate / types` and no other. That was true when it
+# was written and stopped being true when the workflow audit landed beside it, so
+# the count is no longer written down here: the jobs below are the list, and a
+# sentence restating them drifts against them. Found by adding a third job and
+# reading the header.
 #
 # Hardened to the same bar as the guards already in this repository: every action
 # pinned to a full commit hash with the version in a trailing comment, checkout
@@ -101,3 +107,38 @@ jobs:
 
       - name: Audit the workflow files
         run: python tools/workflow_audit.py
+
+  injection:
+    # As with the jobs above, the slash is part of the name because a check run
+    # carries the job name alone.
+    name: Gate / injection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The audit reads the tree and the git index. It pushes nothing.
+          persist-credentials: false
+          # The file list comes from `git ls-files`, which needs the index. A
+          # checkout provides it; no history beyond the head is read, so the
+          # default shallow fetch is enough.
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          # The floor from docs/decisions/0001-implementation-language.md. The
+          # audit uses tomllib, which is standard from that floor, and nothing
+          # else outside the standard library.
+          python-version: "3.11"
+
+      - name: Prove the rules bite
+        # First, because a rule that has stopped refusing its own fixture makes
+        # the green run below meaningless. The fixtures are strings in the file
+        # and no tree is read, so this step judges the rules and not the tree.
+        run: python tools/injection_audit.py --self-test
+
+      - name: Refuse direct clock and randomness use
+        # Nothing is installed. The audit imports the package's source as text
+        # and never imports the package, so it needs neither the package nor a
+        # dependency group.
+        run: python tools/injection_audit.py

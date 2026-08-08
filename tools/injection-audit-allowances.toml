@@ -1,0 +1,32 @@
+# Allowances for tools/injection_audit.py.
+#
+# Two modules in this package have to touch what every other module is
+# forbidden: the one that implements the real clock, and the one that constructs
+# the generator. Their exemption is written here, one entry per file per rule,
+# with the reason, so that it is visible rather than buried in a comment beside
+# the call.
+#
+# The register fails closed in both directions. The audit refuses an entry with
+# no reason, an entry naming a rule it does not have, an entry naming a file git
+# does not track in the package, and an entry that allows nothing because the
+# file no longer breaks that rule.
+#
+# The last of those is what keeps it honest. An exemption whose reason has
+# expired disappears from the diff and stays green forever unless something goes
+# red when it stops being needed.
+#
+# The shape:
+#
+#     [[allowance]]
+#     file = "src/attrappe/example.py"
+#     rule = "no-direct-clock-module"
+#     reason = "Implements the real clock. It is the one place the host clock is read."
+#
+# There are no entries. Neither module exists yet - the package is layout only,
+# six files carrying a docstring and a version literal between them, which
+#
+#     git ls-files 'src/attrappe/*.py'
+#
+# lists - and an entry added while that is true is refused as naming no tracked
+# file. The issue that lands the real clock adds its own entry, and the issue
+# that lands the generator adds the other.
