@@ -221,9 +221,15 @@ LEGS: tuple[Leg, ...] = (
     ),
     Leg(
         id="tests",
-        refuses="a failing test in the default suite",
-        cost="the package installed and the `tests` dependency group",
-        commands=((sys.executable, "-m", "pytest"),),
+        refuses="a failing test in the default suite, and coverage below the floor",
+        cost="the package installed and the `tests` and `coverage` dependency groups",
+        commands=(
+            (sys.executable, "-m", "coverage", "run", "-m", "pytest"),
+            # The interchange format before the threshold, so a run refused for
+            # being under the floor still leaves the report that says where.
+            (sys.executable, "-m", "coverage", "xml"),
+            (sys.executable, "-m", "coverage", "report"),
+        ),
     ),
 )
 

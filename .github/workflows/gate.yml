@@ -164,16 +164,40 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install the package and the runner
+      - name: Install the package, the runner and the measurement
         # Editable, so the suite imports the tree it is testing rather than a
         # copy of it built at install time.
-        run: python -m pip install -e . --group tests
+        run: python -m pip install -e . --group tests --group coverage
 
       - name: Run the tests leg
         # The hardware-bound harness is deselected by `addopts` in
         # pyproject.toml and never reaches this job.
         # docs/decisions/0008-headless.md is where that is required.
+        #
+        # The leg collects coverage, writes the interchange format and refuses
+        # a total below the floor. What each of those is, and in what order, is
+        # in tools/gate.py rather than here.
         run: python tools/gate.py --only tests
+
+      - name: Put the coverage numbers in the run summary
+        # So a reviewer sees the two percentages on the run without downloading
+        # the artefact. The step refuses a missing report rather than writing an
+        # empty block, because a summary saying nothing reads like one saying
+        # everything passed.
+        run: python tools/coverage_summary.py --label "${{ matrix.python-version }}"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: coverage.xml
+          # The same period the distribution artefacts are kept for. A coverage
+          # report older than the branch it came from answers nothing.
+          retention-days: 7
+          # An upload that found nothing is a failure rather than an empty
+          # artefact somebody downloads later and reads as a clean report. The
+          # step above already refuses a missing report, and this refuses the
+          # case where something removed it between the two.
+          if-no-files-found: error
 
   workflows:
     # As with the types job above, the slash is part of the name because a check
