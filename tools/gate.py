@@ -7,10 +7,11 @@ failed, what was not reached and what was not asked for is printed at the end,
 so a run that covered part of the set cannot be read as one that covered the set
 and found nothing.
 
-The jobs in `.github/workflows/gate.yml` invoke this command with `--only`
-instead of restating the tools, so the legs are declared here and selected
-there. The `wiring` leg refuses a selector naming a leg this file does not have,
-which is what keeps the two in step once somebody edits one of them.
+The jobs in `.github/workflows/` invoke this command with `--only` instead of
+restating the tools, so the legs are declared here and selected there. The
+`wiring` leg reads every tracked workflow and refuses a selector naming a leg
+this file does not have, which is what keeps the two in step once somebody edits
+one of them.
 
 `PROSE, NOT ENFORCEMENT` for the other direction. Nothing refuses a leg that no
 job selects, and one is in that state today: `tests` has no job, because the
@@ -27,7 +28,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github" / "workflows" / "gate.yml"
+WORKFLOWS = ".github/workflows"
 
 # A run of one leg answered. `detail` is empty unless the outcome needs a reason.
 PASSED = "passed"
@@ -61,14 +62,30 @@ class Outcome:
 
 @dataclass
 class Wiring:
-    """What `.github/workflows/gate.yml` selects, and what went wrong reading it."""
+    """What the tracked workflows select, and what went wrong reading them."""
 
     selected: set[str] = field(default_factory=set)
     problems: list[str] = field(default_factory=list)
 
 
+def tracked_workflows() -> list[str]:
+    out = subprocess.run(
+        ["git", "ls-files", f"{WORKFLOWS}/*.yml", f"{WORKFLOWS}/*.yaml"],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=ROOT,
+    ).stdout
+    return sorted(line for line in out.splitlines() if line)
+
+
 def read_wiring() -> Wiring:
-    """Every `--only` argument in the gate workflow, and how the read went.
+    """Every `--only` argument in every tracked workflow, and how the read went.
+
+    Every workflow rather than the gate one alone, because a leg can be selected
+    from somewhere else: the dependency audit runs on a schedule as well as on a
+    pull request, and a schedule on the gate workflow would put every other leg
+    on that schedule too.
 
     Fails closed. A workflow file that cannot be parsed, or a parser that is not
     installed, is a `wiring` leg that refuses rather than one that finds nothing
@@ -84,22 +101,24 @@ def read_wiring() -> Wiring:
         )
         return wiring
 
-    try:
-        document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as problem:
-        wiring.problems.append(f"{WORKFLOW.name} could not be read: {problem}")
-        return wiring
+    for path in tracked_workflows():
+        try:
+            document = yaml.safe_load((ROOT / path).read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError) as problem:
+            wiring.problems.append(f"{path} could not be read: {problem}")
+            continue
 
-    jobs = (document or {}).get("jobs") or {}
-    for name, body in jobs.items():
-        for step in (body or {}).get("steps") or []:
-            command = str((step or {}).get("run") or "")
-            for selector in selectors_in(command):
-                wiring.selected.update(split_ids(selector))
-                if "tools/gate.py" not in command:
-                    wiring.problems.append(
-                        f"job {name}: `--only {selector}` outside a run of tools/gate.py"
-                    )
+        jobs = (document or {}).get("jobs") or {}
+        for name, body in jobs.items():
+            for step in (body or {}).get("steps") or []:
+                command = str((step or {}).get("run") or "")
+                for selector in selectors_in(command):
+                    wiring.selected.update(split_ids(selector))
+                    if "tools/gate.py" not in command:
+                        wiring.problems.append(
+                            f"{path}, job {name}: `--only {selector}` "
+                            "outside a run of tools/gate.py"
+                        )
     return wiring
 
 
@@ -133,8 +152,7 @@ def check_wiring() -> bool:
         if selected not in known:
             problems.append(f"`--only {selected}` names no leg this command has")
 
-    where = WORKFLOW.relative_to(ROOT).as_posix()
-    print(f"  {where} selects: {', '.join(sorted(wiring.selected))}")
+    print(f"  {WORKFLOWS} selects: {', '.join(sorted(wiring.selected))}")
     unselected = sorted(known - wiring.selected)
     if unselected:
         print(f"  legs no job selects, which nothing here refuses: {', '.join(unselected)}")
@@ -188,6 +206,12 @@ LEGS: tuple[Leg, ...] = (
             (sys.executable, "tools/injection_audit.py", "--self-test"),
             (sys.executable, "tools/injection_audit.py"),
         ),
+    ),
+    Leg(
+        id="dependencies",
+        refuses="a dependency in the installed set with a known advisory against it",
+        cost="the `audit` dependency group, the installed set to audit, and a reachable database",
+        commands=((sys.executable, "tools/dependency_audit.py"),),
     ),
     Leg(
         id="tests",

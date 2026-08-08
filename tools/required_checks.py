@@ -61,6 +61,18 @@ NOTES: dict[str, Note] = {
         refuses="a direct clock read or a module-level random draw inside the package",
         candidate="yes",
     ),
+    "Gate / dependencies": Note(
+        refuses=(
+            "a dependency in the installed set with a known advisory against it, and an "
+            "acceptance register entry with no reason, no retirement condition, or naming a "
+            "finding that is no longer reported"
+        ),
+        candidate=(
+            "yes, and it is the one whose red run can arrive without a commit. Its workflow "
+            "also runs on a timer, so the mainline turns red when an advisory is published "
+            "against a dependency nobody touched"
+        ),
+    ),
     "DCO sign-off": Note(
         refuses="a commit with no Signed-off-by trailer matching its author",
         candidate="yes",

@@ -42,11 +42,13 @@ and the command tells you which group a leg needs when it reports a leg it did
 not run. All of them at once, in a virtual environment:
 
 ```
-python -m pip install -e . --group lint --group types --group workflows --group tests
+python -m pip install -e .   --group lint --group types --group workflows --group tests --group audit
 ```
 
 The runtime dependency list is empty and every addition to it is argued in the
-issue that adds it.
+issue that adds it. The dependency leg reads the environment those groups were
+installed into rather than the declared list, because the declared runtime list
+is empty and a check over it would examine nothing.
 
 ## Tests
 

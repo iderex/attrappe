@@ -55,6 +55,12 @@ lint = ["ruff>=0.16.2"]
 # hardware-bound exclusion is expressed as a marker expression the runner already
 # has. No plugin: every plugin is a second thing deciding what runs.
 tests = ["pytest>=9.1.1"]
+# pip-audit because it resolves the installed set including transitive
+# dependencies and asks a vulnerability database about it, which is the whole of
+# what #48 needs and nothing more. It is the reference implementation from the
+# packaging authority rather than a service, so the leg runs from the same
+# command as every other leg instead of depending on something to call in.
+audit = ["pip-audit>=2.10.1"]
 
 # The version is declared in exactly one place. The build backend reads the
 # literal out of the package rather than carrying a second copy of it here, so a

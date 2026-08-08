@@ -1,0 +1,23 @@
+# Accepted findings for tools/dependency_audit.py.
+#
+# An entry is a finding somebody decided to live with rather than fix. It is a
+# debt that carries what retires it, not a dispensation, so it names the
+# advisory, the package, the reason the finding is being accepted, and the
+# condition that would retire the acceptance.
+#
+# The register fails closed in both directions. An entry with no reason or no
+# retirement condition is refused. An entry naming an advisory the audit no
+# longer reports is refused as stale, which is what stops an acceptance whose
+# reason expired from disappearing into the file and staying green forever. A
+# finding no entry names is refused, which is the direction the audit exists for.
+#
+# The shape:
+#
+#     [[acceptance]]
+#     advisory = "GHSA-xxxx-xxxx-xxxx"
+#     package = "example"
+#     reason = "Reached only through a code path this project does not call."
+#     retired_when = "the dependency releases a fixed version, or it is dropped."
+#
+# There are no entries. Nothing the environment carries has an advisory against
+# it today, and an entry added while that is true is refused as stale.
