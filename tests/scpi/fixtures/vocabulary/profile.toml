@@ -1,0 +1,71 @@
+# The vocabulary the parser table is read against. A profile rather than a tree
+# built in the test file, because the parser takes its vocabulary from a loaded
+# profile and a hand-built tree would prove the parser against a second idea of
+# what a profile produces.
+#
+# It is small and it is chosen for what the table needs rather than for
+# resembling an instrument: two subsystems that share a mnemonic, one mnemonic
+# whose short and long forms differ by enough characters to have an in-between
+# spelling, one node a numeric suffix goes on, and one node a string parameter
+# goes to. Everything in it is invented.
+
+[identity]
+manufacturer = "Attrappe"
+model = "EMULATED-PARSER-VOCABULARY"
+serial = "0000000010"
+firmware = "0.1.0"
+
+[error_queue]
+depth = 8
+
+[[node]]
+path = "MEASURE"
+short = "MEAS"
+
+[[node]]
+path = "MEASURE:VOLTAGE"
+short = "VOLT"
+
+[[node]]
+path = "MEASURE:VOLTAGE:DC"
+short = "DC"
+
+[[node]]
+path = "SENSE"
+short = "SENS"
+
+[[node]]
+path = "SENSE:FUNCTION"
+short = "FUNC"
+
+[[node]]
+path = "SENSE:VOLTAGE"
+short = "VOLT"
+
+[[node]]
+path = "SENSE:VOLTAGE:DC"
+short = "DC"
+
+[[node]]
+path = "SENSE:VOLTAGE:DC:RANGE"
+short = "RANG"
+
+[[node]]
+path = "SENSE:VOLTAGE:DC:NPLCYCLES"
+short = "NPLC"
+
+[[node]]
+path = "ROUTE"
+short = "ROUT"
+
+[[node]]
+path = "ROUTE:CHANNEL"
+short = "CHAN"
+
+[[node]]
+path = "DISPLAY"
+short = "DISP"
+
+[[node]]
+path = "DISPLAY:TEXT"
+short = "TEXT"
