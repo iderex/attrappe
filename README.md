@@ -121,5 +121,8 @@ stays readable.
 board is closing the distance to, property by property, with where the tree
 stands against each one and the command that measured it.
 
+[CONTRIBUTING.md](CONTRIBUTING.md) names the one command that runs the gate
+locally, and what each leg needs.
+
 See [NOTICE.md](NOTICE.md) for the intended-use notice and
 [SECURITY.md](SECURITY.md) for how to report a vulnerability.

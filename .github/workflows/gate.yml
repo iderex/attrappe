@@ -2,18 +2,22 @@
 # push to it, with one job per leg and a check-run name that is quoted elsewhere
 # and must not drift.
 #
-# This file is incomplete on purpose. It carries the legs whose tool exists in
-# this repository and no others. The test leg, and the single local command the
-# legs are meant to run, arrive with the issues that introduce them (#16, #18,
-# #19). A leg that is absent is absent here rather than stubbed green, so a run
-# that covered some legs cannot be read as one that covered them all and found
-# nothing.
+# This file is incomplete on purpose, and the legs it carries are not written out
+# here. Each job below names which legs it wants, with `--only`, and tools/gate.py
+# holds what a leg is and in what order the legs run. A leg that is absent is
+# absent rather than stubbed green, so a run that covered some legs cannot be
+# read as one that covered them all and found nothing.
 #
-# The two sentences above said `Gate / types` and no other. That was true when it
-# was written and stopped being true when the workflow audit landed beside it, so
-# the count is no longer written down here: the jobs below are the list, and a
-# sentence restating them drifts against them. Found by adding a third job and
-# reading the header.
+# The `wiring` leg reads this file and refuses a `--only` naming a leg the gate
+# command does not have. The other direction is not refused by anything: `tests`
+# is a leg no job here selects, because the check-run name for it and the version
+# matrix behind it are #19's to fix and neither is settled. The gate command
+# prints that gap on every run.
+#
+# An earlier version of this header said which legs existed. That went stale the
+# first time a job was added beside it, so the count is no longer written down:
+# the jobs below are the list, and a sentence restating them drifts against
+# them.
 #
 # Hardened to the same bar as the guards already in this repository: every action
 # pinned to a full commit hash with the version in a trailing comment, checkout
@@ -64,17 +68,12 @@ jobs:
         # nothing from it. One group, one dependency.
         run: python -m pip install --group lint
 
-      - name: Check formatting
-        # Check mode, so the leg reports the difference rather than writing it.
-        # `--diff` puts the change a contributor has to make in the job log,
-        # which is the whole repair, rather than a count of files.
-        run: python -m ruff format --check --diff
-
-      - name: Lint
-        # Separate from the step above so the log says which of the two refused.
-        # No `--fix`: a gate that edits the tree it is judging has judged a tree
-        # nobody pushed.
-        run: python -m ruff check --no-fix
+      - name: Run the format and lint legs
+        # The tools and their flags are in tools/gate.py, not here. This job
+        # names which legs it wants and nothing about how they are run, so the
+        # list of legs is in one place and the local command and this job cannot
+        # drift apart.
+        run: python tools/gate.py --only format,lint
 
   types:
     # The check-run name is this string verbatim, and the slash is part of it.
@@ -116,8 +115,8 @@ jobs:
         # suite imports and which the checker cannot resolve without it.
         run: python -m pip install -e . --group types --group workflows --group tests
 
-      - name: Check types
-        run: python -m mypy
+      - name: Run the types leg
+        run: python tools/gate.py --only types
 
   workflows:
     # As with the types job above, the slash is part of the name because a check
@@ -144,8 +143,12 @@ jobs:
         # installed here. One group, one dependency.
         run: python -m pip install --group workflows
 
-      - name: Audit the workflow files
-        run: python tools/workflow_audit.py
+      - name: Run the wiring and workflow legs
+        # `wiring` reads this file and refuses a `--only` naming a leg the gate
+        # command does not have, so a typo in one of these steps is a refusal
+        # rather than a job that passes having run nothing. It is here because
+        # this is the job that already installs the YAML parser it needs.
+        run: python tools/gate.py --only wiring,workflows
 
   injection:
     # As with the jobs above, the slash is part of the name because a check run
@@ -170,14 +173,10 @@ jobs:
           # else outside the standard library.
           python-version: "3.11"
 
-      - name: Prove the rules bite
-        # First, because a rule that has stopped refusing its own fixture makes
-        # the green run below meaningless. The fixtures are strings in the file
-        # and no tree is read, so this step judges the rules and not the tree.
-        run: python tools/injection_audit.py --self-test
-
-      - name: Refuse direct clock and randomness use
-        # Nothing is installed. The audit imports the package's source as text
-        # and never imports the package, so it needs neither the package nor a
-        # dependency group.
-        run: python tools/injection_audit.py
+      - name: Run the injection leg
+        # Two commands inside one leg, in tools/gate.py: the self-test first,
+        # because a rule that has stopped refusing its own fixture makes the run
+        # over the tree meaningless, and the run over the tree second. Nothing is
+        # installed for either: the audit reads the package's source as text and
+        # never imports it.
+        run: python tools/gate.py --only injection
