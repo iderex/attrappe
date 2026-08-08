@@ -27,6 +27,14 @@ condition is refused, an entry naming a finding that is no longer reported is
 refused as stale, and a finding no entry names is refused. An empty register is
 the normal state.
 
+The staleness rule has a bound worth knowing before an entry is written. What is
+reported depends on what was installed, so an entry that waives a real finding in
+one environment is stale in another that never installs the package, and a
+contributor running this locally against a smaller environment would see it
+refused. That is a reason to fix rather than accept wherever a fixed version
+exists, and the workflow does exactly that for the packages the runner image
+brings and nobody here declares.
+
 The unreachable-database case can be produced by hand, because no database is
 unreachable on demand:
 
