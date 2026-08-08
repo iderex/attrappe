@@ -1,0 +1,70 @@
+# The dependency audit, in its own workflow because of when it has to run.
+#
+# It runs on every pull request and every push to the mainline, like the gate,
+# and also on a timer. The timer is the point: an advisory is published against a
+# dependency nobody touched, no commit happens, and a check that only runs on a
+# change would say nothing until the next unrelated pull request. This one turns
+# the mainline red on its own.
+#
+# It is not a job inside gate.yml, because a timer added there would put every
+# other leg on the same timer for no reason. What it runs is still the same
+# command with the same leg list: `python tools/gate.py --only dependencies`.
+#
+# Hardened to the same bar as every other workflow here: actions pinned to a full
+# commit hash with the version in a trailing comment, checkout without persisted
+# credentials, read-only permissions at the top level and never widened at the
+# job level, a timeout on the job, and a concurrency group that cancels a
+# superseded run. Cancelling is safe because nothing here publishes.
+name: Dependency audit
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Daily. The interval follows the thing being watched: advisories arrive
+    # without a commit, and a longer gap is a longer window in which the mainline
+    # is green against a dependency that is already known to be vulnerable.
+    - cron: "17 5 * * *"
+
+# Read-only: the audit reads the environment it installed and reports.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependencies:
+    # The check-run name is this string verbatim. A check run carries the job
+    # name alone; the workflow name is shown beside it and is not a prefix.
+    name: Gate / dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No step pushes via git, so do not persist the GITHUB_TOKEN in .git/config.
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          # The floor from docs/decisions/0001-implementation-language.md. The
+          # set being audited is the set the other gate jobs run on, so it is
+          # resolved for the same interpreter they use.
+          python-version: "3.11"
+
+      - name: Install everything the gate runs on
+        # Every group, because the audit reads the installed environment and the
+        # point is to cover the whole set the gate executes rather than the
+        # runtime list, which is empty. Editable so the package itself is skipped
+        # by the audit rather than looked up on an index it is not on.
+        run: >-
+          python -m pip install -e .
+          --group lint --group types --group workflows --group tests --group audit
+
+      - name: Run the dependency leg
+        run: python tools/gate.py --only dependencies
