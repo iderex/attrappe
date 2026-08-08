@@ -15,6 +15,15 @@ It exits non-zero when a tracked package file breaks a rule, and it prints what
 it examined, so a run that covered fewer files than the tree holds cannot be read
 as one that covered them all and found nothing.
 
+The proof that the rules bite is executed rather than pasted:
+
+    python tools/injection_audit.py --self-test
+
+which runs each rule against a fixture that violates it, the same fixture with
+the violation removed, and a nearby legal construct, and requires each fixture to
+be refused by exactly the rules it names and no others. Both runs are legs of the
+gate. Deleting either rule reddens the second one.
+
 The file list comes from `git ls-files`. An untracked module sitting in a working
 copy is not audited and is not counted, because it is not what a merge would
 land. An empty list is a finding rather than a pass: a package that moved out
@@ -246,6 +255,107 @@ def load_allowances(tracked: list[str]) -> tuple[list[Allowance], list[Finding]]
     return allowances, findings
 
 
+@dataclass(frozen=True)
+class Case:
+    """One fixture and the exact set of rules it must refuse.
+
+    `refuses` is a set and the comparison is exact, so a fixture that trips a
+    second rule fails the case rather than passing it. That is the bound on what
+    a case proves: which rules refused the bytes, and never which branch inside
+    the rule did the refusing.
+    """
+
+    name: str
+    source: str
+    refuses: frozenset[str]
+
+
+# The fixtures. Each rule carries the three legs the gate asks of any guard: the
+# violation is refused, the same fixture without the violation is refused by
+# nothing, and a nearby legal construct is refused by nothing either. The
+# near-misses are the point. They are the one-character mistakes somebody
+# actually makes, and a rule that refuses them gets switched off.
+CASES = (
+    Case("a bare import of the time module", "import time\n", frozenset({"no-direct-clock-module"})),
+    Case("the same fixture without that line", "\n", frozenset()),
+    Case(
+        "the clock handed in, and a local name ending in time",
+        "def dwell(clock, settling_time=0.02):\n"
+        "    started = clock.time()\n"
+        "    clock.sleep(settling_time)\n"
+        "    return clock.time() - started\n",
+        frozenset(),
+    ),
+    Case("a name lifted out of the time module", "from time import monotonic\n", frozenset({"no-direct-clock-module"})),
+    Case("the time module under another name", "import time as wall\n", frozenset({"no-direct-clock-module"})),
+    Case("a submodule of the clock package", "import datetime.timezone\n", frozenset({"no-direct-clock-module"})),
+    Case("the other module that reads the host clock", "import datetime\n", frozenset({"no-direct-clock-module"})),
+    Case("a module inside this package that happens to be named time", "from .time import Clock\n", frozenset()),
+    Case(
+        "a module-level draw",
+        "import random\n\nnoise = random.gauss(0.0, 1.0)\n",
+        frozenset({"no-module-level-random"}),
+    ),
+    Case("the same fixture with the draw removed", "import random\n", frozenset()),
+    Case("the explicit generator, constructed", "import random\n\nrng = random.Random(4)\n", frozenset()),
+    Case("the explicit generator, imported", "from random import Random\n\nrng = Random(4)\n", frozenset()),
+    Case("a draw from a generator handed in", "def noise(rng):\n    return rng.gauss(0.0, 1.0)\n", frozenset()),
+    Case(
+        "a draw lifted out of the module",
+        "from random import gauss\n",
+        frozenset({"no-module-level-random"}),
+    ),
+    Case(
+        "a draw through the module under another name",
+        "import random as chance\n\nnoise = chance.random()\n",
+        frozenset({"no-module-level-random"}),
+    ),
+    Case(
+        "the generator that cannot be seeded",
+        "from random import SystemRandom\n",
+        frozenset({"no-module-level-random"}),
+    ),
+    Case(
+        "both violations in one file",
+        "import time\nimport random\n\nnoise = random.random()\n",
+        frozenset({"no-direct-clock-module", "no-module-level-random"}),
+    ),
+)
+
+
+def self_test() -> int:
+    """Run the fixtures and report whether each rule refused exactly its own.
+
+    Run it with
+
+        python tools/injection_audit.py --self-test
+
+    This is the executed proof rather than a transcript somebody pasted once. It
+    reads no tree, so it says nothing about the state of this repository on the
+    day it runs; it says the rules refuse what they claim to refuse. The
+    allowance register is not reachable from here, because a register keyed to
+    tracked paths needs a tree, and its legs are shown against the tree instead.
+    """
+    failures = 0
+    for case in CASES:
+        tree = ast.parse(case.source, filename=f"<{case.name}>")
+        got = frozenset(
+            finding.rule
+            for finding in (*check_clock("<fixture>", tree), *check_random("<fixture>", tree))
+        )
+        if got == case.refuses:
+            print(f"  ok      {case.name} -> {sorted(got) or 'nothing'}")
+        else:
+            failures += 1
+            print(
+                f"  FAILED  {case.name}: refused {sorted(got) or 'nothing'}, "
+                f"expected {sorted(case.refuses) or 'nothing'}",
+                file=sys.stderr,
+            )
+    print(f"\n{len(CASES)} fixture(s) against {len(RULES)} rule(s), {failures} failure(s)")
+    return 1 if failures else 0
+
+
 def audit() -> int:
     paths = tracked_sources()
     allowances, findings = load_allowances(paths)
@@ -312,5 +422,14 @@ def audit() -> int:
     return 0
 
 
+def main(argv: list[str]) -> int:
+    if not argv:
+        return audit()
+    if argv == ["--self-test"]:
+        return self_test()
+    print(f"usage: {Path(__file__).name} [--self-test]", file=sys.stderr)
+    return 2
+
+
 if __name__ == "__main__":
-    raise SystemExit(audit())
+    raise SystemExit(main(sys.argv[1:]))

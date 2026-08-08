@@ -131,6 +131,12 @@ jobs:
           # else outside the standard library.
           python-version: "3.11"
 
+      - name: Prove the rules bite
+        # First, because a rule that has stopped refusing its own fixture makes
+        # the green run below meaningless. The fixtures are strings in the file
+        # and no tree is read, so this step judges the rules and not the tree.
+        run: python tools/injection_audit.py --self-test
+
       - name: Refuse direct clock and randomness use
         # Nothing is installed. The audit imports the package's source as text
         # and never imports the package, so it needs neither the package nor a
