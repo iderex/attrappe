@@ -1,9 +1,9 @@
 # attrappe
 
 Nothing described in the next five sections is built yet. This board holds
-decision records, packaging metadata, workflow guards and one leg of a gate. The
-section after them says what the tree actually contains, with the commands that
-answer it.
+decision records, packaging metadata, workflow guards, the legs of a gate and the
+scaffolding of a test suite. The section after them says what the tree actually
+contains, with the commands that answer it.
 
 ## What this is meant to be
 
@@ -89,12 +89,20 @@ $ git grep -nE '^(def|class) ' -- src/attrappe; echo "exit=$?"
 exit=1
 ```
 
-There is no test suite:
+The test suite holds its own scaffolding and nothing about the emulator, because
+there is no emulator to test:
 
 ```
 $ git ls-files 'tests/*' | wc -l
-0
+9
+$ git ls-files 'tests/**/test_*.py' 'tests/test_*.py'
+tests/test_the_hardware_bound_exclusion.py
 ```
+
+That one file is the proof that the hardware-bound exclusion refuses what it says
+it refuses. The directories beside it mirror the package, hold a README each, and
+name the issue that brings their first test. `tests/README.md` says how to run
+both harnesses.
 
 So there is no parser, no listener, no profile and no impairment. Every
 capability sentence above is a goal, which is what the first paragraph and the
