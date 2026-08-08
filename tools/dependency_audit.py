@@ -14,6 +14,13 @@ than a pass with a warning. A silent pass on a security check is the failure thi
 exists to prevent, so the unreadable cases are refusals with their reason
 printed.
 
+The coverage check is done here rather than with the auditor's own strict flag.
+That flag refuses an editable install, and this project is installed editable in
+every environment its own contributing document describes, so it would refuse
+every run for a reason that is not about a dependency. Instead every dependency
+the auditor says it skipped is a refusal, with the one exception of an editable
+install, which is named in the output rather than passed over in silence.
+
 The register of accepted findings is `tools/dependency-audit-acceptances.toml`.
 It fails closed in both directions: an entry with no reason or no retirement
 condition is refused, an entry naming a finding that is no longer reported is
@@ -44,6 +51,9 @@ ACCEPTANCES = ROOT / "tools" / "dependency-audit-acceptances.toml"
 # unreachable to prove the fail-closed path.
 DEFAULT_OSV_URL = "https://api.osv.dev/v1/query"
 
+# The one reason a dependency may go unaudited without the run being refused.
+EDITABLE = "distribution marked as editable"
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -68,13 +78,11 @@ def audit(osv_url: str, timeout: int) -> tuple[list[Finding], list[str]]:
         "-m",
         "pip_audit",
         # The environment this interpreter runs in, which is the set the gate
-        # executes. `--strict` turns a dependency the auditor could not collect
-        # into a failure rather than a line nobody reads.
+        # executes.
         "--local",
-        "--strict",
-        # The package itself is installed editable in a contributor's
-        # environment and is not on any index, so it cannot be audited and would
-        # trip `--strict` for a reason that is not about a dependency.
+        # An editable install has no released version to ask a database about.
+        # The coverage check below is what refuses a dependency that went
+        # unaudited for any other reason.
         "--skip-editable",
         "--vulnerability-service",
         "osv",
@@ -114,7 +122,28 @@ def audit(osv_url: str, timeout: int) -> tuple[list[Finding], list[str]]:
                 or "nothing",
             )
             seen.setdefault((finding.package, finding.version, finding.advisory), finding)
-    return sorted(seen.values(), key=lambda f: (f.package, f.advisory)), []
+
+    # Coverage. The auditor reports a dependency it could not audit with the
+    # reason it gave up, and a run that quietly examined less than the
+    # environment is the failure this leg exists to prevent. The one reason that
+    # is not a refusal is an editable install: it has no released version to ask
+    # a database about, this project is installed that way in every environment
+    # CONTRIBUTING.md describes, and it is named rather than passed over.
+    skipped = [
+        (str(d.get("name", "")), str(d.get("skip_reason", "")))
+        for d in answer.get("dependencies", [])
+        if d.get("skip_reason")
+    ]
+    audited = len(answer.get("dependencies", [])) - len(skipped)
+    print(f"  {audited} distribution(s) audited, {len(skipped)} not")
+    problems = []
+    for name, reason in sorted(skipped):
+        if reason == EDITABLE:
+            print(f"    not audited, installed from a directory: {name}")
+            continue
+        problems.append(f"{name} was not audited: {reason}, so this run covers less than the set")
+
+    return sorted(seen.values(), key=lambda f: (f.package, f.advisory)), problems
 
 
 def acceptances() -> tuple[list[Acceptance], list[str]]:
