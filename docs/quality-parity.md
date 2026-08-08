@@ -19,19 +19,33 @@ the command that produced it, run against the tracked tree, and a reader who
 doubts a line runs the command rather than trusting the sentence. The properties
 themselves do not drift, because they are the target and not an observation.
 
-Measured at `4c9b12a5a7f27a901a740d4b0545a5fbdf16bb86`.
+Measured at `7ff574506db2f8266989932f3ab1c49c32bab192`, which is the commit the
+change carrying this measurement is based on rather than the commit it produces.
+That is sound here and would not be in general: every command below reads
+`.github/workflows/`, `pyproject.toml` or `tests/`, and none of them reads
+`docs/`, so a change confined to this file cannot move any of the answers. A
+change touching any of those three paths has to re-run them and quote the result
+from its own tree.
+
+The standings were first written at `4c9b12a5a7f27a901a740d4b0545a5fbdf16bb86`
+and four of them had gone stale by the time they were re-run, which is the
+failure the paragraph above describes happening to this document. Properties 1,
+2, 7 and 10 moved. The document said nothing was wrong, because nothing here
+refuses a stale standing, and the section at the end that says so is the only
+warning a reader had.
 
 ## The properties
 
 ### 1. Build and test run on every pull request to the mainline and on every push to it
 
-Partly met. One workflow runs on both events and it carries one leg, the type
-check. Nothing builds a distribution and nothing runs a test.
+Partly met. One workflow runs on both events and it carries two legs, the type
+check and the workflow audit. Neither builds a distribution and neither runs a
+test, so the count of legs went up and this property did not move.
 
 ```
 $ python -c "import yaml,sys; d=yaml.safe_load(open('.github/workflows/gate.yml')); print(list(d[True].keys())); print(list(d['jobs']))"
 ['pull_request', 'push']
-['types']
+['types', 'workflows']
 $ git grep -nEi 'coverage|pytest|--cov|python -m build|hatch build' -- .github/workflows/; echo "exit=$?"
 exit=1
 ```
@@ -54,7 +68,7 @@ one tool that does run is the type checker, and it fails the job on any error:
 
 ```
 $ git grep -n 'python -m mypy' -- .github/workflows/gate.yml
-.github/workflows/gate.yml:73:        run: python -m mypy
+.github/workflows/gate.yml:75:        run: python -m mypy
 ```
 
 A non-zero exit fails the step, and mypy exits non-zero on any error. That is one
@@ -110,23 +124,72 @@ Closed by #51.
 
 ### 7. Every action reference is pinned to a full commit hash with the version in a trailing comment
 
-Met. Thirteen references across six workflow files, and none of them fails the
-shape:
+Met, and guarded since #53 landed. Fifteen references across six workflow files,
+and none of them fails the shape:
 
 ```
 $ git grep -hE '^\s*(- )?uses:' -- .github/workflows/ | wc -l
-13
+15
 $ git grep -hE '^\s*(- )?uses:' -- .github/workflows/ | grep -vE '@[0-9a-f]{40} # v'; echo "exit=$?"
 exit=1
 ```
 
-Met is not the same as guarded. Nothing in this repository refuses a fourteenth
-reference written as a tag except the workflow-security audit, which flags an
-unpinned action under its own rule. #53 is the issue that makes the property
-refusable in its own right, and it says where it overlaps the audit rather than
-duplicating it silently.
+The count moved from thirteen because the gate gained a second job. The shape
+held across the addition, which is what the second command says and what the
+first one on its own would not.
 
-Closed by #53.
+The guarded half is what changed. When this standing was first written, nothing
+in the repository refused a sixteenth reference written as a tag except the
+workflow-security audit, under its own rule and its own severity threshold. #53
+has since landed a first-party audit that refuses it by name, and that audit is
+a job in the gate rather than a script somebody remembers to run:
+
+```
+$ python tools/workflow_audit.py; echo "exit=$?"
+audited 6 tracked workflow file(s) against 6 rule(s)
+  .github/workflows/dco.yml
+  .github/workflows/dependency-review.yml
+  .github/workflows/gate.yml
+  .github/workflows/scorecard.yml
+  .github/workflows/unicode-guard.yml
+  .github/workflows/zizmor.yml
+waivers in force: 0
+
+no findings
+exit=0
+```
+
+The rule bites, shown by writing the violation rather than by reading the source
+that would refuse it. A pin replaced with a tag in one tracked workflow, the
+audit re-run, and the file restored:
+
+```
+$ python - <<'EOF'
+import pathlib
+p = pathlib.Path(".github/workflows/unicode-guard.yml")
+p.write_text(p.read_text(encoding="utf-8").replace(
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
+    "actions/checkout@v7", 1), encoding="utf-8")
+EOF
+$ python tools/workflow_audit.py; echo "exit=$?"
+
+1 finding(s):
+  .github/workflows/unicode-guard.yml: pinned-to-a-hash: line 28: actions/checkout@v7 is not a 40-character hash
+audited 6 tracked workflow file(s) against 6 rule(s)
+  .github/workflows/dco.yml
+  .github/workflows/dependency-review.yml
+  .github/workflows/gate.yml
+  .github/workflows/scorecard.yml
+  .github/workflows/unicode-guard.yml
+  .github/workflows/zizmor.yml
+waivers in force: 0
+exit=1
+$ git checkout -- .github/workflows/unicode-guard.yml
+$ python tools/workflow_audit.py >/dev/null; echo "exit=$?"
+exit=0
+```
+
+Closed by #53, which is closed.
 
 ### 8. The build is a reusable job that the release path calls
 
@@ -176,6 +239,7 @@ for f in sys.stdin.read().split():
    job dependency-review perms: None timeout: 10
 .github/workflows/gate.yml top: {'contents': 'read'}
    job types perms: None timeout: 10
+   job workflows perms: None timeout: 5
 .github/workflows/scorecard.yml top: {'contents': 'read'}
    job analysis perms: {'contents': 'read', 'security-events': 'write', 'id-token': 'write'} timeout: 15
 .github/workflows/unicode-guard.yml top: {'contents': 'read'}
@@ -191,7 +255,42 @@ more complete than the tree is.
 Every job also carries a timeout, which is not one of the ten properties and is
 recorded because the same command answers it.
 
-As with property 7, met is not guarded. Closed by #53.
+As with property 7, the guarded half is what #53 changed, and it has landed. The
+audit refuses a workflow-level write under its own rule, and the rule bites:
+
+```
+$ python - <<'EOF'
+import pathlib
+p = pathlib.Path(".github/workflows/unicode-guard.yml")
+p.write_text(p.read_text(encoding="utf-8").replace(
+    "permissions:\n  contents: read\n",
+    "permissions:\n  contents: write\n", 1), encoding="utf-8")
+EOF
+$ python tools/workflow_audit.py; echo "exit=$?"
+
+1 finding(s):
+  .github/workflows/unicode-guard.yml: no-workflow-level-write: workflow-level write on contents; grant it on the job instead
+audited 6 tracked workflow file(s) against 6 rule(s)
+  .github/workflows/dco.yml
+  .github/workflows/dependency-review.yml
+  .github/workflows/gate.yml
+  .github/workflows/scorecard.yml
+  .github/workflows/unicode-guard.yml
+  .github/workflows/zizmor.yml
+waivers in force: 0
+exit=1
+$ git checkout -- .github/workflows/unicode-guard.yml
+$ python tools/workflow_audit.py >/dev/null; echo "exit=$?"
+exit=0
+```
+
+That covers the workflow-level half of the property and not the per-job half.
+The audit refuses a write granted at the top; nothing in it judges whether a
+write granted on a job is the smallest one that job needs, and no reading of
+these files could. The two jobs that hold a write scope are read by a person or
+not at all.
+
+Closed by #53, which is closed.
 
 ## Deviations from the gate this list came from
 
