@@ -19,7 +19,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-ROOT   =  Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[1]
 GATE = ROOT / ".github" / "workflows" / "gate.yml"
 PACKAGING = ROOT / "pyproject.toml"
 
