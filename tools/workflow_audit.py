@@ -193,10 +193,19 @@ def check_checkout_credentials(path: str, document: dict[Any, Any]) -> list[Find
 
 
 def check_job_timeouts(path: str, document: dict[Any, Any]) -> list[Finding]:
+    """A job runs until its timeout or forever, so every job declares one.
+
+    A job that calls a reusable workflow is the one shape that cannot. It has no
+    `runs-on` and no steps, `timeout-minutes` is not a key it accepts, and the
+    timeout that binds is the one on the job inside the workflow it calls, which
+    this same check reads when it reaches that file. Exempting it here is what
+    keeps the rule about the job that actually runs rather than about the line
+    that names it.
+    """
     return [
         Finding(path, "every-job-has-a-timeout", f"job {name} has no timeout-minutes")
         for name, job in (document.get("jobs") or {}).items()
-        if job.get("timeout-minutes") is None
+        if job.get("timeout-minutes") is None and not job.get("uses")
     ]
 
 

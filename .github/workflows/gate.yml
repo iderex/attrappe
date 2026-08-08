@@ -75,6 +75,20 @@ jobs:
         # drift apart.
         run: python tools/gate.py --only format,lint
 
+  build:
+    # The one job here that is not a list of steps. It calls the reusable build
+    # workflow, which the release path will call with the same inputs, so the
+    # artefacts a release publishes come out of the job the gate already ran.
+    #
+    # A called job carries no `timeout-minutes` and no `runs-on`: both belong to
+    # the job inside the workflow it calls, and the audit reads them there.
+    name: Gate / build
+    uses: ./.github/workflows/build.yml
+    with:
+      # The floor from docs/decisions/0001-implementation-language.md. A
+      # distribution built on the floor installs on everything above it.
+      python-version: "3.11"
+
   types:
     # The check-run name is this string verbatim, and the slash is part of it.
     #

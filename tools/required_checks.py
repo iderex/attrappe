@@ -73,6 +73,18 @@ NOTES: dict[str, Note] = {
             "against a dependency nobody touched"
         ),
     ),
+    "Gate / build / distribution": Note(
+        refuses=(
+            "two builds of one commit whose archives differ in content, a build that produced "
+            "no artefact, and an upload that found nothing"
+        ),
+        candidate=(
+            "yes. The name carries two slashes because a job that calls a reusable workflow "
+            "produces one check run per job in the workflow it calls, named after both. The "
+            "release path calls the same workflow, so requiring this requires the job a release "
+            "is built by"
+        ),
+    ),
     "DCO sign-off": Note(
         refuses="a commit with no Signed-off-by trailer matching its author",
         candidate="yes",
@@ -151,24 +163,60 @@ def triggers(document: dict[Any, Any]) -> Any:
     return document.get(True, document.get("on"))
 
 
-def checks() -> list[Check]:
+def load(path: str) -> dict[Any, Any]:
     import yaml
 
+    document: dict[Any, Any] = yaml.safe_load((ROOT / path).read_text(encoding="utf-8")) or {}
+    return document
+
+
+def wants_write(body: dict[Any, Any]) -> bool:
+    permissions = body.get("permissions") or {}
+    return isinstance(permissions, dict) and "write" in permissions.values()
+
+
+def checks() -> list[Check]:
+    """Every check-run name a job in this tree produces.
+
+    A job that calls a reusable workflow produces one check run per job in the
+    workflow it calls, and the name is the caller's job name, a slash, and the
+    called job's name. So the reusable workflow's own jobs are not check runs by
+    themselves: it has no trigger, nothing starts it, and its names only exist
+    behind a caller's.
+    """
     found: list[Check] = []
     for path in tracked_workflows():
-        document = yaml.safe_load((ROOT / path).read_text(encoding="utf-8"))
+        document = load(path)
         events = triggers(document) or {}
+        if set(events) <= {"workflow_call", "workflow_dispatch"}:
+            # Nothing starts it on its own. Its jobs appear under whoever calls it.
+            continue
         on_pull_request = "pull_request" in events
         for key, body in (document.get("jobs") or {}).items():
-            permissions = (body or {}).get("permissions") or {}
-            asks_for_write = isinstance(permissions, dict) and "write" in permissions.values()
+            body = body or {}
+            caller = str(body.get("name") or key)
+            called = str(body.get("uses") or "")
+            if called.startswith("./"):
+                inner = load(called[2:])
+                for inner_key, inner_body in (inner.get("jobs") or {}).items():
+                    inner_body = inner_body or {}
+                    found.append(
+                        Check(
+                            name=f"{caller} / {inner_body.get('name') or inner_key}",
+                            workflow=f"{path} calling {called[2:]}",
+                            job=f"{key} calling {inner_key}",
+                            on_pull_request=on_pull_request,
+                            asks_for_write=wants_write(body) or wants_write(inner_body),
+                        )
+                    )
+                continue
             found.append(
                 Check(
-                    name=str((body or {}).get("name") or key),
+                    name=caller,
                     workflow=path,
                     job=str(key),
                     on_pull_request=on_pull_request,
-                    asks_for_write=asks_for_write,
+                    asks_for_write=wants_write(body),
                 )
             )
     return sorted(found, key=lambda check: check.name)
