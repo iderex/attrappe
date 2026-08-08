@@ -112,8 +112,9 @@ jobs:
         # Editable so the checker resolves the package the way a contributor's
         # environment does. `types` pins the checker; `workflows` pins the stubs
         # it needs to check the workflow audit, which is under tools/ and is
-        # checked like anything else.
-        run: python -m pip install -e . --group types --group workflows
+        # checked like anything else; `tests` pins the runner, whose types the
+        # suite imports and which the checker cannot resolve without it.
+        run: python -m pip install -e . --group types --group workflows --group tests
 
       - name: Check types
         run: python -m mypy
