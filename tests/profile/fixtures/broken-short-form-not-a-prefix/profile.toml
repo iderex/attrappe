@@ -1,0 +1,20 @@
+# One defect: `VLT` is not a prefix of `VOLTAGE`, so there is no rule by which
+# an instrument accepts the short form and the long form and refuses what is
+# between them. Exactly one problem, naming `node[1].short`.
+
+[identity]
+manufacturer = "Attrappe"
+model = "EMULATED-DMM-BROKEN"
+serial = "0000000004"
+firmware = "0.1.0"
+
+[error_queue]
+depth = 8
+
+[[node]]
+path = "SENSE"
+short = "SENS"
+
+[[node]]
+path = "SENSE:VOLTAGE"
+short = "VLT"

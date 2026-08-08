@@ -1,0 +1,35 @@
+# Five defects at once, of five different kinds, so that a loader reporting the
+# first one and stopping is visibly wrong rather than plausibly right. A
+# contributor meeting this profile should be able to fix all five from one run.
+#
+#   notes                     a key nobody declared
+#   identity.firmware         missing, and all four identity fields are required
+#   error_queue.depth         zero, and a queue of depth zero holds no error
+#   node[1].short             `VLT` is not a prefix of `VOLTAGE`
+#   parameter[0].default      outside the range the same entry declares
+
+notes = "an unknown key, which is refused rather than ignored"
+
+[identity]
+manufacturer = "Attrappe"
+model = "EMULATED-DMM-BROKEN"
+serial = "0000000007"
+
+[error_queue]
+depth = 0
+
+[[node]]
+path = "SENSE"
+short = "SENS"
+
+[[node]]
+path = "SENSE:VOLTAGE"
+short = "VLT"
+
+[[parameter]]
+node = "SENSE:VOLTAGE"
+name = "range"
+type = "numeric"
+minimum = 0.1
+maximum = 10.0
+default = 100.0
