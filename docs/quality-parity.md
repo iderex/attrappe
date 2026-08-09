@@ -27,6 +27,14 @@ That is sound here and would not be in general: every command below reads
 change touching any of those three paths has to re-run them and quote the result
 from its own tree.
 
+Property 6 carries its own measured-at line, and it is the only one this change
+re-ran. Every standing beside it is still the reading taken at `d2c2af3`, and
+several of them are older than the tree: the gate has gained legs since, so the
+job lists, the counts and the line numbers quoted below have moved and the
+sentences saying "not met" have not. Re-reading the whole document is a change of
+its own and this is not it. What each line is worth is what its own command
+answers today.
+
 The standings were first written at `4c9b12a5a7f27a901a740d4b0545a5fbdf16bb86`
 and four of them had gone stale by the time they were re-run, which is the
 failure the paragraph above describes happening to this document. Properties 1,
@@ -128,14 +136,46 @@ Closed by #49.
 
 ### 6. Formatting is checked across every text kind, and it checks rather than rewrites
 
-Not met. No formatter is configured and none runs:
+Met for three of the four text kinds this tree holds, and the fourth is the
+deviation written below rather than an omission. Measured at
+`0a301c9200a2fa0367d6515765280046a5fc5bec`, which is the commit that added the
+second leg rather than the commit carrying this paragraph; the change carrying it
+touches this file alone, so none of the answers below moves.
+
+The kinds, by count:
 
 ```
-$ git grep -nEi 'ruff format|black|prettier|fmt --check' -- .github/workflows/ pyproject.toml; echo "exit=$?"
-exit=1
+$ for kind in py md toml yml; do printf "%s\t%s\n" "$kind" "$(git ls-files "*.$kind" | wc -l)"; done
+py      25
+md      24
+toml    13
+yml     8
 ```
 
-Closed by #51.
+Two legs carry the property. The source is the `format` leg, which asks the
+formatter what it would write and never lets it write:
+
+```
+$ git grep -n -- "--check" tools/gate.py
+tools/gate.py:169:        commands=((sys.executable, "-m", "ruff", "format", "--check", "--diff"),),
+tools/gate.py:208:        commands=((sys.executable, "tools/required_checks.py", "--check"),),
+```
+
+The documentation and the profile files are the `text` leg, which does the same
+for markdown and validates each profile against the loader's schema. Its rules
+are proved against fixtures on every run, and the run over the tree says how much
+it read:
+
+```
+$ python tools/text_audit.py --self-test | tail -1
+21 fixture(s) against 3 rule(s), 0 failure(s)
+$ python tools/text_audit.py | head -1
+audited 24 tracked document(s) and 8 tracked profile(s) against 3 rule(s)
+```
+
+Closed by #51 for those three. The fourth kind is the layout of the declarative
+files, which nothing formats, and the deviation section below is where that is
+argued.
 
 ### 7. Every action reference is pinned to a full commit hash with the version in a trailing comment
 
@@ -319,6 +359,16 @@ The reference gate's formatting job covers markup and stylesheets, which this
 board has almost none of. Property 6 therefore covers the source, the profile
 files and the documentation instead. The property is unchanged: every text kind
 in the repository, not only the primary language.
+
+Inside that, the layout of the declarative files is not checked and their content
+is. A profile is validated against the loader's schema, which is the half that
+decides whether it loads; how its tables are spaced and ordered is judged by
+nobody. The formatters for that text kind are a second runtime apiece, which
+`docs/decisions/0001-implementation-language.md` is the reason not to take for a
+property this narrow, and a first-party one would be a formatter maintained
+inside a repository that is not about TOML. The schedule files
+`docs/decisions/0007-fault-schedule.md` describes are the same kind and do not
+exist yet; they join this leg when they land, under the same two halves.
 
 The reference gate builds a distributable artefact on every run. For a compiled
 plugin that is cheap; here it means building a package. The property is kept and

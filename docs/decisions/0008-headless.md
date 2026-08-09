@@ -27,12 +27,14 @@ one anyway.
 
 Every test in the default suite runs under six constraints:
 
-    no display
-    no elevation
-    no kernel driver
-    no device node
-    no physical device
-    no outbound network
+```
+no display
+no elevation
+no kernel driver
+no device node
+no physical device
+no outbound network
+```
 
 The default suite is the one the gate runs and the one a contributor runs locally
 with a single command. Those are the same suite, selected the same way, and not

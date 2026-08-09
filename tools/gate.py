@@ -175,6 +175,21 @@ LEGS: tuple[Leg, ...] = (
         commands=((sys.executable, "-m", "ruff", "check", "--no-fix"),),
     ),
     Leg(
+        id="text",
+        refuses=(
+            "a document the formatter would rewrite, a relative link to nothing, "
+            "a profile the loader refuses"
+        ),
+        cost="the `docs` dependency group, and the package installed for the profile loader",
+        commands=(
+            # The self-test first, for the reason the injection leg gives below:
+            # a rule that has stopped refusing its own fixture makes the run over
+            # the tree meaningless.
+            (sys.executable, "tools/text_audit.py", "--self-test"),
+            (sys.executable, "tools/text_audit.py"),
+        ),
+    ),
+    Leg(
         id="types",
         refuses="a type error in the package, the tooling or the suite",
         cost="the package installed, and the `types`, `workflows` and `tests` groups",

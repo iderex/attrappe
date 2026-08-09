@@ -74,6 +74,42 @@ jobs:
         # drift apart.
         run: python tools/gate.py --only format,lint
 
+  text:
+    # As with the jobs below, the slash is part of the name because a check run
+    # carries the job name alone.
+    name: Gate / text
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No step pushes via git, so do not persist the GITHUB_TOKEN in .git/config.
+          persist-credentials: false
+          # The audit takes its file list from `git ls-files`, which needs the
+          # index. A checkout provides it; no history beyond the head is read,
+          # so the default shallow fetch is enough.
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          # The floor from docs/decisions/0001-implementation-language.md. The
+          # audit reads the profile schema through the package, which is
+          # supported from this version up.
+          python-version: "3.11"
+
+      - name: Install the package and the formatter
+        # Editable, so the audit reads the loader in this tree rather than a copy
+        # of it built at install time. The package is here because the profile
+        # rule validates against the loader's schema and not against a second
+        # declaration of it.
+        run: python -m pip install -e . --group docs
+
+      - name: Run the text leg
+        # Two commands inside one leg, in tools/gate.py: the self-test first,
+        # because a rule that has stopped refusing its own fixture makes the run
+        # over the tree meaningless, and the run over the tree second.
+        run: python tools/gate.py --only text
+
   build:
     # The one job here that is not a list of steps. It calls the reusable build
     # workflow, which the release path will call with the same inputs, so the
@@ -125,8 +161,12 @@ jobs:
         # environment does. `types` pins the checker; `workflows` pins the stubs
         # it needs to check the workflow audit, which is under tools/ and is
         # checked like anything else; `tests` pins the runner, whose types the
-        # suite imports and which the checker cannot resolve without it.
-        run: python -m pip install -e . --group types --group workflows --group tests
+        # suite imports and which the checker cannot resolve without it; `docs`
+        # pins the formatter and the markdown parser, which the text audit
+        # imports and which is under tools/ for the same reason.
+        run: >-
+          python -m pip install -e .
+          --group types --group workflows --group tests --group docs
 
       - name: Run the types leg
         run: python tools/gate.py --only types

@@ -5,7 +5,9 @@ are in `[tool.pytest.ini_options]` in `pyproject.toml` and nowhere else.
 
 ## The default suite
 
-    python -m pytest
+```
+python -m pytest
+```
 
 Everything under this directory except the hardware-bound marker, which
 `addopts` deselects. This is the suite the gate runs and the suite a contributor
@@ -20,7 +22,9 @@ first one.
 
 ## The hardware-bound harness
 
-    python -m pytest tests/hardware_bound -m hardware_bound
+```
+python -m pytest tests/hardware_bound -m hardware_bound
+```
 
 `-m hardware_bound` on the command line replaces the deselection in `addopts`,
 and the path restricts the run to this harness, so the command runs the
