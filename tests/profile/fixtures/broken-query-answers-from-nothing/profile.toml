@@ -1,0 +1,22 @@
+# One defect: a node accepting a query with no parameter under it. A query is
+# answered from the values of its node's parameters, so this one answers with no
+# bytes at all while the profile says the command is there. Exactly one problem,
+# naming `node[1].accepts`.
+
+[identity]
+manufacturer = "Attrappe"
+model = "EMULATED-DMM-BROKEN"
+serial = "0000000009"
+firmware = "0.1.0"
+
+[error_queue]
+depth = 8
+
+[[node]]
+path = "SENSE"
+short = "SENS"
+
+[[node]]
+path = "SENSE:VOLTAGE"
+short = "VOLT"
+accepts = "query"

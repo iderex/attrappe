@@ -1,0 +1,22 @@
+# One defect: `read` is not one of the forms a node may declare it accepts, and
+# a misspelling read as a branch would be a subsystem the profile says is there
+# and the emulator answers `-113` for. Exactly one problem, naming
+# `node[1].accepts`.
+
+[identity]
+manufacturer = "Attrappe"
+model = "EMULATED-DMM-BROKEN"
+serial = "0000000006"
+firmware = "0.1.0"
+
+[error_queue]
+depth = 8
+
+[[node]]
+path = "SENSE"
+short = "SENS"
+
+[[node]]
+path = "SENSE:VOLTAGE"
+short = "VOLT"
+accepts = "read"

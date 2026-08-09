@@ -99,6 +99,10 @@ def test_a_parameter_carries_its_range_its_default_and_its_reset_rule() -> None:
         ("broken-short-form-not-a-prefix", "node[1].short"),
         ("broken-duplicate-node", "node[2].path"),
         ("broken-parent-not-declared", "node[1].path"),
+        ("broken-accepts-not-a-declared-form", "node[1].accepts"),
+        ("broken-suffix-count-below-one", "node[1].suffixes"),
+        ("broken-query-answers-from-nothing", "node[1].accepts"),
+        ("broken-separator-is-empty", "response.separator"),
     ],
 )
 def test_each_broken_fixture_is_refused_with_the_key_it_is_wrong_in(fixture: str, key: str) -> None:
@@ -115,6 +119,61 @@ def test_each_broken_fixture_is_refused_with_the_key_it_is_wrong_in(fixture: str
     assert refused.value.profile == fixture
     assert fixture in str(refused.value)
     assert key in str(refused.value)
+
+
+def test_a_node_carries_what_it_accepts_and_how_many_of_it_there_are() -> None:
+    """The keys the dispatch reads, and the defaults for a node declaring neither.
+
+    A node with no `accepts` is a branch, which is the safe reading of an absent
+    key: a header stopping there is refused rather than answered. One instance
+    is the SCPI default and it is not the absence of a suffix, so a node
+    declaring nothing answers to both spellings of the first instance.
+    """
+    profile = load_profile(VALID)
+    by_path = {node.path: node for node in profile.nodes()}
+
+    branch = by_path[("SENSE",)]
+    assert branch.accepts is None
+    assert branch.settable is False
+    assert branch.queryable is False
+    assert branch.suffixes == 1
+
+
+def test_the_response_separator_defaults_to_the_comma_the_valid_fixture_omits() -> None:
+    """The valid fixture declares no `[response]`, so the default is what it gets."""
+    assert "[response]" not in (VALID / "profile.toml").read_text(encoding="utf-8")
+
+    assert load_profile(VALID).separator == ","
+
+
+@pytest.mark.parametrize(
+    ("declared", "separator"),
+    [
+        ('\n[response]\nseparator = "|"\n', "|"),
+        # A table that declares nothing is not a defect. It is a profile whose
+        # author opened the section and had nothing to put in it, and the
+        # default is what the section would have said.
+        ("\n[response]\n", ","),
+    ],
+)
+def test_a_declared_response_separator_is_read(
+    tmp_path: Path, declared: str, separator: str
+) -> None:
+    valid = (VALID / "profile.toml").read_text(encoding="utf-8")
+    (tmp_path / "profile.toml").write_text(valid + declared, encoding="utf-8")
+
+    assert load_profile(tmp_path).separator == separator
+
+
+def test_a_response_section_that_is_not_a_table_is_refused(tmp_path: Path) -> None:
+    """Written above the tables, because a bare key after one belongs to it."""
+    valid = (VALID / "profile.toml").read_text(encoding="utf-8")
+    (tmp_path / "profile.toml").write_text("response = 5\n" + valid, encoding="utf-8")
+
+    with pytest.raises(ProfileError) as refused:
+        load_profile(tmp_path)
+
+    assert keys(refused.value) == ["response"]
 
 
 def test_every_problem_is_reported_and_not_only_the_first() -> None:

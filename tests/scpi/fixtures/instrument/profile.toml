@@ -1,0 +1,185 @@
+# The instrument the dispatch table is read against. Everything in it is
+# invented, and the model field says so, because whether a shipped profile may
+# name a real manufacturer and model is entry 2 of #1 and is the maintainer's to
+# answer.
+#
+# It is chosen for what the table needs rather than for resembling a bench
+# instrument: a node of each accepted form, a node with several instances, a
+# node whose query answers with two values so the declared separator is doing
+# something, a parameter of each of the four types, and one parameter that
+# survives a reset beside one that does not.
+
+[identity]
+manufacturer = "Attrappe"
+model = "EMULATED-DMM-DISPATCH"
+serial = "0000000002"
+firmware = "0.1.0"
+
+[error_queue]
+depth = 16
+
+[response]
+# Declared rather than left to the default, so the fixture says what it expects
+# instead of agreeing with a default by accident.
+separator = ","
+
+# The command tree. `accepts` says which of the two forms a header resolving to
+# this node is a command in, and a node declaring none of them is a branch that
+# exists so its children have somewhere to hang.
+
+[[node]]
+path = "SENSE"
+short = "SENS"
+
+[[node]]
+path = "SENSE:FUNCTION"
+short = "FUNC"
+accepts = "both"
+
+[[node]]
+path = "SENSE:VOLTAGE"
+short = "VOLT"
+
+[[node]]
+path = "SENSE:VOLTAGE:DC"
+short = "DC"
+accepts = "both"
+
+[[node]]
+path = "SENSE:VOLTAGE:DC:RANGE"
+short = "RANG"
+accepts = "both"
+
+[[node]]
+path = "SENSE:VOLTAGE:DC:NPLCYCLES"
+short = "NPLC"
+accepts = "both"
+
+[[node]]
+path = "CONFIGURE"
+short = "CONF"
+
+[[node]]
+path = "CONFIGURE:VOLTAGE"
+short = "VOLT"
+
+# Two parameters, so a query here answers with two values and the separator is
+# read rather than assumed.
+[[node]]
+path = "CONFIGURE:VOLTAGE:DC"
+short = "DC"
+accepts = "both"
+
+[[node]]
+path = "ROUTE"
+short = "ROUT"
+
+# Four instances of one node, which is what a numeric suffix selects among. A
+# fifth is out of range and the dispatch says so by number.
+[[node]]
+path = "ROUTE:CHANNEL"
+short = "CHAN"
+accepts = "both"
+suffixes = 4
+
+[[node]]
+path = "DISPLAY"
+short = "DISP"
+
+[[node]]
+path = "DISPLAY:TEXT"
+short = "TEXT"
+accepts = "both"
+
+# An action: a command with no parameters and no query form, which is the shape
+# a real instrument uses for clearing something.
+[[node]]
+path = "DISPLAY:TEXT:CLEAR"
+short = "CLE"
+accepts = "set"
+
+[[node]]
+path = "CALIBRATION"
+short = "CAL"
+
+# A counter the device keeps and nobody writes, which is the query-only shape.
+[[node]]
+path = "CALIBRATION:COUNT"
+short = "COUN"
+accepts = "query"
+
+# The parameter table. Each entry is one positional parameter of the command its
+# node is, in the order the entries are declared.
+
+[[parameter]]
+node = "SENSE:FUNCTION"
+name = "name"
+type = "character"
+choices = ["VOLTAGE", "CURRENT", "RESISTANCE"]
+default = "VOLTAGE"
+
+[[parameter]]
+node = "SENSE:VOLTAGE:DC"
+name = "autozero"
+type = "boolean"
+default = true
+survives_reset = true
+
+[[parameter]]
+node = "SENSE:VOLTAGE:DC:RANGE"
+name = "value"
+type = "numeric"
+minimum = 0.1
+maximum = 1000.0
+default = 10.0
+units = "V"
+
+# Named `value` as well, and surviving a reset where the range's `value` does
+# not. Two parameters sharing a name on two nodes is what a reset keyed by the
+# name alone would get wrong.
+[[parameter]]
+node = "SENSE:VOLTAGE:DC:NPLCYCLES"
+name = "value"
+type = "numeric"
+minimum = 0.02
+maximum = 100.0
+default = 10.0
+survives_reset = true
+
+[[parameter]]
+node = "CONFIGURE:VOLTAGE:DC"
+name = "range"
+type = "numeric"
+minimum = 0.1
+maximum = 1000.0
+default = 10.0
+units = "V"
+
+[[parameter]]
+node = "CONFIGURE:VOLTAGE:DC"
+name = "resolution"
+type = "numeric"
+minimum = 1e-7
+maximum = 1e-3
+default = 1e-5
+units = "V"
+
+[[parameter]]
+node = "ROUTE:CHANNEL"
+name = "state"
+type = "boolean"
+default = false
+
+[[parameter]]
+node = "DISPLAY:TEXT"
+name = "content"
+type = "string"
+default = "READY"
+
+[[parameter]]
+node = "CALIBRATION:COUNT"
+name = "count"
+type = "numeric"
+minimum = 0.0
+maximum = 1000000.0
+default = 0.0
