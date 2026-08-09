@@ -1,0 +1,51 @@
+# Profiles that exist in order to be refused, for tools/text_audit.py.
+#
+# The schema rule refuses a tracked profile directory the loader refuses. The
+# loader's own fixtures are the case that needs an entry here: a fixture proving
+# a duplicate node is refused has to hold a duplicate node, and a leg refusing
+# every bad profile in the tree would refuse the proof that bad profiles are
+# refused.
+#
+# An entry is not a dispensation. It says the directory is refused on purpose and
+# why, and the audit checks that it still is.
+#
+# The register fails closed in both directions. The audit refuses an entry with
+# no reason, an entry naming a directory that is not a tracked profile, and an
+# entry naming a profile that now loads cleanly, which is the direction that
+# keeps it honest: an entry whose fixture was repaired would otherwise stay green
+# forever with nobody able to tell it from a live one.
+#
+# The shape:
+#
+#     [[expected]]
+#     profile = "tests/profile/fixtures/broken-example"
+#     reason = "Declares one node twice. The loader test asserts it is refused."
+#
+# The path in that shape is not one of the entries below and is not in the tree.
+# An example a reader can paste unchanged is an example that adds a second entry
+# for a fixture that already has one.
+#
+# The entries below are the fixtures under tests/profile/fixtures whose names
+# begin with `broken-`. The name is not what waives them: the audit reads this
+# file and nothing else, so a fixture renamed without an entry is refused and a
+# fixture repaired without its entry removed is refused as stale.
+
+[[expected]]
+profile = "tests/profile/fixtures/broken-default-outside-range"
+reason = "Declares a parameter whose range does not contain its own default. tests/profile/test_the_loader_refuses_a_bad_profile.py asserts the refusal."
+
+[[expected]]
+profile = "tests/profile/fixtures/broken-duplicate-node"
+reason = "Declares one node twice. tests/profile/test_the_loader_refuses_a_bad_profile.py asserts the refusal."
+
+[[expected]]
+profile = "tests/profile/fixtures/broken-parent-not-declared"
+reason = "Declares a node whose parent is not declared, so it cannot be placed in a tree. tests/profile/test_the_loader_refuses_a_bad_profile.py asserts the refusal."
+
+[[expected]]
+profile = "tests/profile/fixtures/broken-several-problems"
+reason = "Carries several problems at once, which is the fixture proving the loader reports all of them rather than the first. tests/profile/test_the_loader_refuses_a_bad_profile.py asserts the refusal."
+
+[[expected]]
+profile = "tests/profile/fixtures/broken-short-form-not-a-prefix"
+reason = "Declares a node whose short form is not a prefix of its long form. tests/profile/test_the_loader_refuses_a_bad_profile.py asserts the refusal."

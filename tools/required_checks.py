@@ -52,6 +52,14 @@ NOTES: dict[str, Note] = {
         ),
         candidate="yes",
     ),
+    "Gate / text": Note(
+        refuses=(
+            "a tracked document the formatter would rewrite, a relative link or image "
+            "naming a path the tree does not hold, and a tracked profile the loader "
+            "refuses that the expected-refusal register does not name"
+        ),
+        candidate="yes",
+    ),
     "Gate / types": Note(
         refuses="a type error in the package, the repository tooling or the suite",
         candidate="yes",

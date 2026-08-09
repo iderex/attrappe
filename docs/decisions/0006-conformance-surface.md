@@ -30,19 +30,21 @@ Implement everything in both.
 
 The mandatory common commands are implemented in full. That set is:
 
-    *IDN?   identification
-    *RST    reset
-    *CLS    clear status
-    *ESE    event status enable, set
-    *ESE?   event status enable, query
-    *ESR?   event status register, query and clear
-    *SRE    service request enable, set
-    *SRE?   service request enable, query
-    *STB?   status byte, query
-    *OPC    operation complete, command form
-    *OPC?   operation complete, query form
-    *TST?   self-test, query
-    *WAI    wait to continue
+```
+*IDN?   identification
+*RST    reset
+*CLS    clear status
+*ESE    event status enable, set
+*ESE?   event status enable, query
+*ESR?   event status register, query and clear
+*SRE    service request enable, set
+*SRE?   service request enable, query
+*STB?   status byte, query
+*OPC    operation complete, command form
+*OPC?   operation complete, query form
+*TST?   self-test, query
+*WAI    wait to continue
+```
 
 The status-reporting model is implemented as a real model. The status byte is
 computed from the event status register, the event status enable register and the
@@ -52,38 +54,42 @@ a constant or as a value a profile writes directly.
 The command language is implemented as the tree walker plus the mandatory system
 subsystem. That subsystem is:
 
-    SYSTem:ERRor[:NEXT]?    the oldest entry in the error queue, and remove it
-    SYSTem:ERRor:COUNt?     how many entries the queue holds
-    SYSTem:VERSion?         the command-language version the emulator answers to
+```
+SYSTem:ERRor[:NEXT]?    the oldest entry in the error queue, and remove it
+SYSTem:ERRor:COUNt?     how many entries the queue holds
+SYSTem:VERSion?         the command-language version the emulator answers to
+```
 
 The error numbers the core produces, and their standard messages, are:
 
-    0     No error
-    -100  Command error
-    -101  Invalid character
-    -102  Syntax error
-    -103  Invalid separator
-    -104  Data type error
-    -108  Parameter not allowed
-    -109  Missing parameter
-    -113  Undefined header
-    -114  Header suffix out of range
-    -120  Numeric data error
-    -128  Numeric data not allowed
-    -131  Invalid suffix
-    -138  Suffix not allowed
-    -148  Character data not allowed
-    -158  String data not allowed
-    -200  Execution error
-    -220  Parameter error
-    -221  Settings conflict
-    -222  Data out of range
-    -224  Illegal parameter value
-    -350  Queue overflow
-    -363  Input buffer overrun
-    -400  Query error
-    -410  Query INTERRUPTED
-    -420  Query UNTERMINATED
+```
+0     No error
+-100  Command error
+-101  Invalid character
+-102  Syntax error
+-103  Invalid separator
+-104  Data type error
+-108  Parameter not allowed
+-109  Missing parameter
+-113  Undefined header
+-114  Header suffix out of range
+-120  Numeric data error
+-128  Numeric data not allowed
+-131  Invalid suffix
+-138  Suffix not allowed
+-148  Character data not allowed
+-158  String data not allowed
+-200  Execution error
+-220  Parameter error
+-221  Settings conflict
+-222  Data out of range
+-224  Illegal parameter value
+-350  Queue overflow
+-363  Input buffer overrun
+-400  Query error
+-410  Query INTERRUPTED
+-420  Query UNTERMINATED
+```
 
 Everything else in the command language is per profile. A profile adds
 subsystems, and a profile may add device-specific error numbers, which are the

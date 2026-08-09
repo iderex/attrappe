@@ -56,6 +56,14 @@ workflows = ["pyyaml>=6.0", "types-pyyaml>=6.0"]
 # mean two configurations that can disagree about the same bytes, and a
 # disagreement between a formatter and a linter is settled by whoever ran last.
 lint = ["ruff>=0.16.2"]
+# mdformat because a canonical form for a text kind is not something to write
+# here, and it is the one that reaches this tree's non-source text without a
+# second runtime: pure Python, configured from its defaults, and no dependency
+# beyond a markdown parser. markdown-it-py is that parser and is named here as
+# well because tools/text_audit.py imports it directly for the link rule, so it
+# is a dependency of this repository rather than an implementation detail of the
+# formatter that happens to be installed.
+docs = ["mdformat>=1.0", "markdown-it-py>=4.0"]
 # pytest because the marker registry and the selection this project needs are
 # configuration in this file rather than a runner somebody wrote, and because the
 # hardware-bound exclusion is expressed as a marker expression the runner already
