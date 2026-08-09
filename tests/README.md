@@ -43,11 +43,41 @@ It holds no test yet, so the command above collects nothing and exits 5, which
 is pytest's code for a run in which no test ran. The first member it is owed is
 the soak run in #46.
 
+## The shared fixtures
+
+`tests/conftest.py` carries the `--device` option and three fixtures, so that no
+test has a reason to build its own session, pick its own seed or reach for a
+real socket by accident.
+
+`instrument_profile` is the dispatch's profile fixture, loaded fresh for each
+test that asks for it.
+
+`session` is a seeded session on that profile. It is the in-process transport as
+well as the seeded session, rather than one of two things:
+`docs/decisions/0002-transport.md` defines that transport as the same session
+object a connected client drives, driven directly by a caller in the same
+process, so a second fixture would hand out one class under two names.
+
+`new_session` is the factory, for a test that needs two sessions, another seed
+or another profile.
+
+The seed is one constant in the conftest rather than a number per file, so a
+failure anywhere in the suite is reproduced from one seed and one profile.
+`tests/test_the_shared_fixtures.py` asserts each of those promises, because a
+fixture nothing checks fails quietly: the tests that took it keep passing while
+asserting against a state nobody set.
+
 ## What the suite does not have yet
 
-`tests/conftest.py` carries the `--device` option and no fixtures. The harness
-was asked for shared fixtures for the manual clock, a seeded session and an
-in-process transport, so that no test reaches for the real clock or a real
-socket by accident. None of the three can be written yet: there is no clock, no
-session and no transport in `src/attrappe`, which holds docstrings and a version
-literal. #16 stays open on that half and names what each fixture waits for.
+There is no manual clock fixture, because there is no clock:
+
+```
+$ git grep -nE '^(def|class) .*[Cc]lock' -- src/attrappe ; echo "exit=$?"
+exit=1
+```
+
+`docs/decisions/0003-time.md` decides a clock interface with a real and a manual
+implementation. A fixture here cannot be the first one, because it would put an
+interface the package itself has to import in a place the package cannot import
+from, and would guarantee a second implementation on the day the real one lands.
+#16 stays open on that fixture.
