@@ -49,16 +49,33 @@ A refused unit produces no response bytes at all. That is what makes a query for
 a missing command look to a driver exactly like it looks against a real
 instrument: the client waits, the read times out, and nothing arrives.
 
+## Every refusal reaches the error queue, and it reaches it here
+
+`execute` pushes each refusal into the instrument's queue as it happens, which
+is what makes the queue the one place an error is recorded rather than one of
+two places an error might be recorded. The parser's refusals go in first,
+because a message is read before any of its units runs, and each unit's own
+refusal goes in when that unit is reached. So `MEAS:XYZ?;SYST:ERR?` answers with
+the undefined header the first unit produced, in the order a real instrument
+answers it.
+
+The queue is on the instrument rather than on this dispatch because `*CLS`
+empties it and the instrument is what `*CLS` acts on, and because a session's
+errors belong to its instrument for the same reason its settings do.
+
+`SYSTem:ERRor[:NEXT]?` and `SYSTem:ERRor:COUNt?` are the part of `0006`'s
+mandatory system subsystem that reads the queue, and they are implemented here
+as core nodes grafted into the vocabulary rather than as something a profile
+declares. `SYSTem:VERSion?` is the third member of that subsystem and is not
+here: it answers a command-language version, which is a statement about
+conformance rather than a read of the queue, and nothing in this tree or in any
+profile declares one.
+
 ## What this does not do yet, named rather than approximated
 
-The refusals do not reach the error queue, because there is no error queue; #23
-builds it and `Outcome.errors` is what it takes. They do not set the event
-status bits either, which is #24 along with the message-available bit and the
-operation-complete query that waits for a running integration.
-
-`SYSTem:ERRor?` and its neighbours are the mandatory system subsystem in `0006`
-and are absent here for the same reason: all three read the queue, so they are
-#23's to add rather than three commands answering from nothing.
+The refusals do not set the event status bits, which is #24 along with the
+message-available bit and the operation-complete query that waits for a running
+integration.
 
 A query takes no parameters here. A real instrument accepts `MIN`, `MAX` and
 `DEF` on many of them and answers the declared bound instead of the current
@@ -80,10 +97,11 @@ from attrappe.device import (
     OPERATION_COMPLETE_BIT,
     REGISTER_MAXIMUM,
     REGISTER_MINIMUM,
+    Entry,
     Instance,
     Instrument,
 )
-from attrappe.profile import Parameter
+from attrappe.profile import Node, Parameter
 from attrappe.scpi.parser import (
     MESSAGE_SEPARATOR,
     CharacterValue,
@@ -212,9 +230,20 @@ class Refused:
 
 
 # What a message can be refused by: the parser's stage and this one. The error
-# queue in #23 takes this union rather than one of the two, because a queue
-# holding only half the refusals is a queue a driver reads as a clean run.
+# queue takes this union rather than one of the two, because a queue holding
+# only half the refusals is a queue a driver reads as a clean run.
 Error = ParseError | Refused
+
+
+def queue_entry(error: Error) -> Entry:
+    """The error queue entry one refusal becomes.
+
+    One function rather than a method on each of the two refusal types, because
+    the transport produces refusals of its own for bytes that never reached a
+    parser and it converts them through this as well. Three call sites building
+    an entry each would be three chances to drop the detail.
+    """
+    return Entry(error.refusal.number, error.refusal.message, error.detail)
 
 
 @dataclass(frozen=True)
@@ -354,6 +383,68 @@ MANDATORY_COMMON: frozenset[str] = frozenset(entry.mnemonic for entry in COMMON)
 COMMON_BY_MNEMONIC: dict[str, CommonCommand] = {entry.mnemonic: entry for entry in COMMON}
 
 
+def _error_next(dispatch: Dispatch, command: Command) -> str | Refused:
+    """`SYSTem:ERRor?`: the oldest entry, removed, or the no-error entry."""
+    return str(dispatch.instrument.errors.take())
+
+
+def _error_count(dispatch: Dispatch, command: Command) -> str | Refused:
+    """`SYSTem:ERRor:COUNt?`: how many entries are waiting, without removing any."""
+    return str(dispatch.instrument.errors.count)
+
+
+# The part of `0006`'s mandatory system subsystem that reads the error queue,
+# built as nodes so a header resolves to it through the same walk every other
+# header takes. Long forms and short forms are the standard's spellings, which
+# is what a driver sends.
+#
+# `SYSTem:ERRor?` and `SYSTem:ERRor:NEXT?` are one command under two headers,
+# which is what the record's `[:NEXT]` means, so both resolve to the same
+# handler rather than one delegating to the other.
+SYSTEM_NODES: tuple[Node, ...] = (
+    Node(
+        long="SYSTEM",
+        short="SYST",
+        path=("SYSTEM",),
+        children=(
+            Node(
+                long="ERROR",
+                short="ERR",
+                path=("SYSTEM", "ERROR"),
+                accepts="query",
+                children=(
+                    Node(
+                        long="NEXT",
+                        short="NEXT",
+                        path=("SYSTEM", "ERROR", "NEXT"),
+                        accepts="query",
+                    ),
+                    Node(
+                        long="COUNT",
+                        short="COUN",
+                        path=("SYSTEM", "ERROR", "COUNT"),
+                        accepts="query",
+                    ),
+                ),
+            ),
+        ),
+    ),
+)
+
+# What each core header answers with. A path in this table is answered by its
+# handler instead of by the parameters under its node, which is what makes these
+# commands the core's: they read state no profile declares.
+SYSTEM_ANSWERS: dict[tuple[str, ...], Callable[[Dispatch, Command], str | Refused]] = {
+    ("SYSTEM", "ERROR"): _error_next,
+    ("SYSTEM", "ERROR", "NEXT"): _error_next,
+    ("SYSTEM", "ERROR", "COUNT"): _error_count,
+}
+
+SYSTEM_BY_PATH: dict[tuple[str, ...], Node] = {
+    node.path: node for root in SYSTEM_NODES for node in root.walk()
+}
+
+
 @dataclass
 class Dispatch:
     """One instrument and the vocabulary its messages are read against."""
@@ -372,8 +463,18 @@ class Dispatch:
         """
         return cls(
             instrument=instrument,
-            vocabulary=Vocabulary.from_profile(instrument.profile, MANDATORY_COMMON),
+            vocabulary=Vocabulary.from_profile(instrument.profile, MANDATORY_COMMON, SYSTEM_NODES),
         )
+
+    def node_at(self, path: tuple[str, ...]) -> Node | None:
+        """The node a header resolved to: the core's subsystem, then the profile's.
+
+        The same precedence the vocabulary was built with. A profile declaring
+        `SYSTem:ERRor` of its own would otherwise resolve through the core in
+        the parser and through its own node here, and the two answers would be
+        for different commands.
+        """
+        return SYSTEM_BY_PATH.get(path) or self.instrument.node_at(path)
 
     def execute(self, message: str) -> Outcome:
         """Read one message and run every command in it that resolves.
@@ -386,10 +487,14 @@ class Dispatch:
         errors: list[Error] = list(parsed.errors)
         answers: list[str] = []
 
+        for error in parsed.errors:
+            self._record(error)
+
         for command in parsed.commands:
             outcome = self._one(command)
             if isinstance(outcome, Refused):
                 errors.append(outcome)
+                self._record(outcome)
             elif outcome is not None:
                 answers.append(outcome)
 
@@ -397,6 +502,16 @@ class Dispatch:
             response=MESSAGE_SEPARATOR.join(answers) if answers else None,
             errors=tuple(errors),
         )
+
+    def _record(self, error: Error) -> None:
+        """Put one refusal in the instrument's queue.
+
+        Every refusal this module produces and every refusal the parser handed
+        it goes through here, so a path that refuses without recording would be
+        a call to `_one` whose result nothing looks at, rather than a missing
+        line somebody has to notice.
+        """
+        self.instrument.errors.push(queue_entry(error))
 
     def _one(self, command: Command) -> str | Refused | None:
         if command.common:
@@ -431,7 +546,7 @@ class Dispatch:
 
     def _tree(self, command: Command) -> str | Refused | None:
         """A header that walked the tree: check the instance, the form, the values."""
-        node = self.instrument.node_at(command.path)
+        node = self.node_at(command.path)
         if node is None:
             # The parser resolved the header against this same profile, so this
             # is unreachable through `execute`. It is a refusal rather than an
@@ -460,6 +575,9 @@ class Dispatch:
                     f"no parameter on a query; got {len(command.parameters)}",
                     command,
                 )
+            answer = SYSTEM_ANSWERS.get(command.path)
+            if answer is not None:
+                return answer(self, command)
             return self._answer(node.parameters, instance)
 
         if not node.settable:
@@ -486,7 +604,7 @@ class Dispatch:
         for depth, (mnemonic, suffix) in enumerate(
             zip(command.path, command.suffixes, strict=True), start=1
         ):
-            node = self.instrument.node_at(command.path[:depth])
+            node = self.node_at(command.path[:depth])
             if node is not None and suffix > node.suffixes:
                 return refuse(
                     "suffix-above-the-instances",

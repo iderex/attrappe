@@ -1,0 +1,72 @@
+# The instrument the error queue is read against. Everything in it is invented,
+# and the model field says so, because whether a shipped profile may name a real
+# manufacturer and model is entry 2 of #1 and is the maintainer's to answer.
+#
+# It is chosen for what the queue needs rather than for resembling a bench
+# instrument. Two things it has that the dispatch's fixture does not:
+#
+# A queue two entries deep, so an overflow is three messages rather than
+# seventeen. The depth is the only thing that decides how long the overflow test
+# takes, and a test that filled a depth of several hundred would prove the same
+# property and take longer to read.
+#
+# A `SYSTem` subsystem of its own, beside the one the core implements. A profile
+# is free to declare one and this is the mnemonic it will reach for, so the
+# fixture that proves the two coexist has to be a profile that collides on
+# purpose.
+
+[identity]
+manufacturer = "Attrappe"
+model = "EMULATED-DMM-QUEUE"
+serial = "0000000003"
+firmware = "0.1.0"
+
+[error_queue]
+# The shallowest queue that still tells a full queue from an overflowed one: two
+# entries hold one real error and the overflow entry that replaced the second.
+depth = 2
+
+[[node]]
+path = "SENSE"
+short = "SENS"
+
+[[node]]
+path = "SENSE:VOLTAGE"
+short = "VOLT"
+
+[[node]]
+path = "SENSE:VOLTAGE:DC"
+short = "DC"
+
+[[node]]
+path = "SENSE:VOLTAGE:DC:RANGE"
+short = "RANG"
+accepts = "both"
+
+# The profile's own system subsystem. `SYSTem` collides with the core's root and
+# `BEEPer` is under it, so a vocabulary that concatenated the two lists instead
+# of merging them would leave either this node or the core's error queue
+# unreachable, depending on which list came first.
+[[node]]
+path = "SYSTEM"
+short = "SYST"
+
+[[node]]
+path = "SYSTEM:BEEPER"
+short = "BEEP"
+accepts = "both"
+
+[[parameter]]
+node = "SENSE:VOLTAGE:DC:RANGE"
+name = "value"
+type = "numeric"
+minimum = 0.1
+maximum = 1000.0
+default = 10.0
+units = "V"
+
+[[parameter]]
+node = "SYSTEM:BEEPER"
+name = "state"
+type = "boolean"
+default = false

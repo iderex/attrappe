@@ -57,8 +57,9 @@ Nothing in this file measures time. A read that costs the configured integration
 time is #34 and a fault that delays a response is #36; both arrive with the
 clock `0003-time.md` decides, and there is no clock in this tree.
 
-The refusals reach `Session.refusals`, which is a list rather than the queue with
-a depth and an overflow behaviour that #23 builds.
+Nothing here reads the error queue. The framing refusals below are pushed into
+it through `Session.record`, and a client that wants them back asks for them
+with `SYSTem:ERRor?` over the same connection.
 """
 
 from __future__ import annotations

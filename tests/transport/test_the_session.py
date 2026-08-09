@@ -109,14 +109,20 @@ def test_two_sessions_on_one_profile_do_not_share_instrument_state() -> None:
     assert second.deliver("SENS:VOLT:DC:RANG?").response == "10.0"
 
 
-def test_a_session_counts_what_it_was_asked_and_keeps_what_it_refused() -> None:
+def test_a_session_counts_what_it_was_asked_and_queues_what_it_refused() -> None:
+    """Both messages are counted, and only the refused one leaves an entry.
+
+    Read off the instrument's queue rather than off a list of the session's
+    own, which is where a refusal goes now that there is a queue with a depth
+    to put it in.
+    """
     session = Session(load_profile(PROFILE), seed=7)
 
     session.deliver("*IDN?")
     session.deliver("SENS:VOLT:DC:RANG 2000")
 
     assert session.operations == 2
-    assert [refusal.number for refusal in session.refusals] == [-222]
+    assert [entry.number for entry in session.instrument.errors.entries] == [-222]
 
 
 def test_a_session_on_a_directory_refuses_a_bad_profile_before_it_exists() -> None:

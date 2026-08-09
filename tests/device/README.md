@@ -12,5 +12,15 @@ It reads the dispatch's profile fixture rather than a second one, because two
 fixtures declaring almost the same instrument drift, and the properties tested
 here are the ones that fixture was built to have.
 
-The error queue is #23 and the events that set the status bits are #24. Both
-land in this directory.
+`test_the_error_queue.py` covers the queue: its order, the depth its profile
+declares, what a full one does, and the assertion that every refusal either
+stage of the message language can produce ends up in it. That last one is driven
+from the two refusal tables, so a refusal added with nothing that provokes it
+turns this directory red rather than quietly becoming an error nothing records.
+
+It reads a second fixture, `fixtures/queue`, and the reasons are in the fixture
+itself: a queue two entries deep so an overflow is three messages, and a
+`SYSTem` subsystem of the profile's own beside the one the core implements.
+
+The events that set the status bits from those same errors are #24, and they
+land in this directory too.
