@@ -49,3 +49,19 @@ reason = "Carries several problems at once, which is the fixture proving the loa
 [[expected]]
 profile = "tests/profile/fixtures/broken-short-form-not-a-prefix"
 reason = "Declares a node whose short form is not a prefix of its long form. tests/profile/test_the_loader_refuses_a_bad_profile.py asserts the refusal."
+
+[[expected]]
+profile = "tests/profile/fixtures/broken-accepts-not-a-declared-form"
+reason = "Declares a node accepting a form that is not one of the declared forms. tests/profile/test_the_loader_refuses_a_bad_profile.py asserts the refusal."
+
+[[expected]]
+profile = "tests/profile/fixtures/broken-query-answers-from-nothing"
+reason = "Declares a node accepting a query with no parameter to answer from. tests/profile/test_the_loader_refuses_a_bad_profile.py asserts the refusal."
+
+[[expected]]
+profile = "tests/profile/fixtures/broken-separator-is-empty"
+reason = "Declares a response separator with nothing in it. tests/profile/test_the_loader_refuses_a_bad_profile.py asserts the refusal."
+
+[[expected]]
+profile = "tests/profile/fixtures/broken-suffix-count-below-one"
+reason = "Declares a node with fewer than one instance of itself, which no header can reach. tests/profile/test_the_loader_refuses_a_bad_profile.py asserts the refusal."

@@ -26,6 +26,10 @@ What this refuses, and each one is a fixture under `tests/profile/fixtures`:
 - a node whose short form is not a prefix of its long form
 - a node declared twice
 - a node whose parent is not declared, which cannot be placed in a tree
+- a node declaring a form it accepts that is not one of the declared forms
+- a node declaring fewer than one instance of itself
+- a node accepting a query with no parameter to answer from
+- a response separator that is empty
 - an unknown key, rather than ignoring it, because an ignored key is a typo
   that silently does nothing
 - the shape rules underneath those: a missing required key, a value of the
@@ -59,11 +63,33 @@ CODE_FILE = "behaviour.py"
 # The declared keys, per table. Anything outside these sets is refused. The sets
 # are the schema, and they are here rather than spread through the checks below
 # so that the answer to "what may a profile say" is one screen.
-TOP_LEVEL_KEYS = frozenset({"identity", "error_queue", "node", "parameter"})
+TOP_LEVEL_KEYS = frozenset({"identity", "error_queue", "response", "node", "parameter"})
 IDENTITY_KEYS = ("manufacturer", "model", "serial", "firmware")
 ERROR_QUEUE_KEYS = frozenset({"depth"})
+RESPONSE_KEYS = frozenset({"separator"})
 NODE_REQUIRED = ("path", "short")
-NODE_KEYS = frozenset(NODE_REQUIRED)
+NODE_KEYS = frozenset((*NODE_REQUIRED, "accepts", "suffixes"))
+
+# What a node accepts, which decides whether a header resolving to it is a
+# command at all. A node declaring none of them is a branch: it exists so its
+# children have somewhere to hang, and a header stopping on it is undefined.
+# The forms are separate because a device has command-only nodes such as an
+# immediate trigger and query-only nodes such as a reading, and collapsing the
+# two would make the emulator answer a form the device refuses.
+ACCEPTED_FORMS = ("set", "query", "both")
+ACCEPTS_SET = ("set", "both")
+ACCEPTS_QUERY = ("query", "both")
+
+# How many instances of a node exist, which is what a numeric suffix selects
+# among. One is the default and it is not the absence of a suffix: SCPI reads an
+# omitted suffix as one, so a node declaring one instance answers to both `CHAN`
+# and `CHAN1` and refuses `CHAN2`.
+DEFAULT_SUFFIXES = 1
+
+# The separator between the values of a query that answers with several. A
+# profile may declare another; a device that answers with a different character
+# is a device a driver splits wrongly.
+DEFAULT_SEPARATOR = ","
 PARAMETER_REQUIRED = ("node", "name", "type", "default")
 PARAMETER_KEYS = frozenset(
     (*PARAMETER_REQUIRED, "minimum", "maximum", "choices", "units", "survives_reset")
@@ -130,6 +156,10 @@ class Node:
 
     `path` is the long forms from the root down to and including this node, so a
     node knows where it sits without a reference back to its parent.
+
+    `accepts` is None on a branch, which is a node that exists only to carry
+    children. `suffixes` is how many instances of the node exist, counting from
+    one.
     """
 
     long: str
@@ -137,6 +167,16 @@ class Node:
     path: tuple[str, ...]
     children: tuple[Node, ...] = ()
     parameters: tuple[Parameter, ...] = ()
+    accepts: str | None = None
+    suffixes: int = DEFAULT_SUFFIXES
+
+    @property
+    def settable(self) -> bool:
+        return self.accepts in ACCEPTS_SET
+
+    @property
+    def queryable(self) -> bool:
+        return self.accepts in ACCEPTS_QUERY
 
     def walk(self) -> list[Node]:
         """This node and every node below it, parents before children."""
@@ -161,6 +201,7 @@ class Profile:
     error_queue_depth: int
     roots: tuple[Node, ...]
     code_half: Path | None
+    separator: str = DEFAULT_SEPARATOR
 
     def nodes(self) -> list[Node]:
         """Every node in the tree, parents before children."""
@@ -246,9 +287,56 @@ def _validate(document: dict[str, Any]) -> list[Problem]:
     problems.extend(_unknown_keys("", document, TOP_LEVEL_KEYS))
     problems.extend(_validate_identity(document.get("identity")))
     problems.extend(_validate_error_queue(document.get("error_queue")))
+    problems.extend(_validate_response(document.get("response")))
     declared = _validate_nodes(document.get("node"), problems)
     _validate_parameters(document.get("parameter"), declared, problems)
+    _check_a_query_has_something_to_answer(document, problems)
     return problems
+
+
+def _check_a_query_has_something_to_answer(
+    document: dict[str, Any], problems: list[Problem]
+) -> None:
+    """Refuse a node accepting a query with no parameter under it.
+
+    A query is answered from the values of its node's parameters, so a node with
+    none answers with no bytes at all. That is worse than a refusal: the client
+    reads an empty response where it expected a value, and the profile it came
+    from said the command was there.
+
+    This is where a reading command will meet the loader. `MEASure:VOLTage:DC?`
+    answers from the measurement model rather than from a parameter table, so
+    the profile format needs a way to say that a node's answer comes from the
+    code half, and that is the reading pipeline's to add rather than something
+    to invent here for a node that does not exist yet.
+    """
+    entries = document.get("node")
+    parameters = document.get("parameter")
+    if not isinstance(entries, list):
+        return
+
+    answered: set[tuple[str, ...]] = set()
+    if isinstance(parameters, list):
+        for entry in parameters:
+            node = entry.get("node") if isinstance(entry, dict) else None
+            if isinstance(node, str) and node:
+                answered.add(tuple(mnemonic.upper() for mnemonic in node.split(":")))
+
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict) or entry.get("accepts") not in ACCEPTS_QUERY:
+            continue
+        path = entry.get("path")
+        if not isinstance(path, str) or not path:
+            continue
+        if tuple(mnemonic.upper() for mnemonic in path.split(":")) not in answered:
+            problems.append(
+                Problem(
+                    DECLARATIVE_FILE,
+                    f"node[{index}].accepts",
+                    "at least one parameter under the node, since a query is answered from "
+                    f'them; nothing declares one under "{path}"',
+                )
+            )
 
 
 def _unknown_keys(prefix: str, table: dict[str, Any], allowed: frozenset[str]) -> list[Problem]:
@@ -318,6 +406,28 @@ def _validate_error_queue(error_queue: object) -> list[Problem]:
     return problems
 
 
+def _validate_response(response: object) -> list[Problem]:
+    """The separator between the values of a query answering with several.
+
+    The whole table is optional, because a profile whose every query answers
+    with one value has nothing to say here and the default is the comma every
+    such device uses. What is refused is a declared separator that is empty,
+    which is a device whose two-value response a driver reads as one value.
+    """
+    if response is None:
+        return []
+    if not isinstance(response, dict):
+        return [Problem(DECLARATIVE_FILE, "response", "a table, not a value")]
+
+    problems = _unknown_keys("response.", response, RESPONSE_KEYS)
+    separator = response.get("separator")
+    if separator is None:
+        return problems
+    if not isinstance(separator, str) or not separator:
+        problems.append(Problem(DECLARATIVE_FILE, "response.separator", "a non-empty string"))
+    return problems
+
+
 def _validate_nodes(node_entries: object, problems: list[Problem]) -> dict[tuple[str, ...], int]:
     """Check every node and answer the paths that are declared, keyed uppercase.
 
@@ -342,6 +452,8 @@ def _validate_nodes(node_entries: object, problems: list[Problem]) -> dict[tuple
         if path is None:
             continue
         _check_short_form(key, entry, path, problems)
+        _check_accepts(key, entry, problems)
+        _check_suffixes(key, entry, problems)
         if path in declared:
             problems.append(
                 Problem(
@@ -418,6 +530,37 @@ def _check_short_form(
                 f"{key}.short",
                 f'a prefix of the long form "{long}"; got "{short}"',
             )
+        )
+
+
+def _check_accepts(key: str, entry: dict[str, Any], problems: list[Problem]) -> None:
+    """Refuse a form that is none of the declared ones.
+
+    Absent is legal and means a branch. A misspelling would otherwise be read as
+    a branch too, and a node that quietly accepts nothing is a subsystem the
+    emulator answers `-113` for while the profile says it is there.
+    """
+    accepts = entry.get("accepts")
+    if accepts is None:
+        return
+    if not isinstance(accepts, str) or accepts not in ACCEPTED_FORMS:
+        problems.append(
+            Problem(
+                DECLARATIVE_FILE,
+                f"{key}.accepts",
+                f"one of {', '.join(ACCEPTED_FORMS)}; got {accepts!r}",
+            )
+        )
+
+
+def _check_suffixes(key: str, entry: dict[str, Any], problems: list[Problem]) -> None:
+    """Refuse an instance count below one, since suffixes count from one."""
+    suffixes = entry.get("suffixes")
+    if suffixes is None:
+        return
+    if isinstance(suffixes, bool) or not isinstance(suffixes, int) or suffixes < 1:
+        problems.append(
+            Problem(DECLARATIVE_FILE, f"{key}.suffixes", "a whole number of one or more")
         )
 
 
@@ -649,10 +792,14 @@ def _construct(
         )
 
     shorts: dict[tuple[str, ...], str] = {}
+    accepts: dict[tuple[str, ...], str | None] = {}
+    suffixes: dict[tuple[str, ...], int] = {}
     order: list[tuple[str, ...]] = []
     for entry in document["node"]:
         path = tuple(mnemonic.upper() for mnemonic in entry["path"].split(":"))
         shorts[path] = entry["short"].upper()
+        accepts[path] = entry.get("accepts")
+        suffixes[path] = int(entry.get("suffixes", DEFAULT_SUFFIXES))
         order.append(path)
 
     children: dict[tuple[str, ...], list[tuple[str, ...]]] = {path: [] for path in order}
@@ -670,8 +817,11 @@ def _construct(
             path=path,
             children=tuple(build(child) for child in children[path]),
             parameters=tuple(parameters.get(path, ())),
+            accepts=accepts[path],
+            suffixes=suffixes[path],
         )
 
+    response = document.get("response", {})
     return Profile(
         name=name,
         directory=directory,
@@ -679,6 +829,7 @@ def _construct(
         error_queue_depth=document["error_queue"]["depth"],
         roots=tuple(build(path) for path in roots),
         code_half=code_half,
+        separator=response.get("separator", DEFAULT_SEPARATOR),
     )
 
 
