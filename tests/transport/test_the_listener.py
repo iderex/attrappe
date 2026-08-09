@@ -44,6 +44,19 @@ BRIEF = 0.4
 
 RESTARTS = 100
 
+# How many messages the client that never reads sends before it goes. Enough
+# that the listener takes several of them out of one read, which is the shape
+# the defect needs: the first answer finds the peer gone and the rest are still
+# in the buffer behind it.
+IMPOLITE_MESSAGES = 60
+
+# How long one stepped turn of the loop waits, and how many turns are taken
+# after the impolite client has gone. The wait bounds a turn with nothing ready
+# rather than measuring anything, and the count is small because everything the
+# turn has to see is already in the socket by then.
+STEP = 0.2
+STEPS_AFTER_THE_CLOSE = 6
+
 
 @pytest.fixture
 def server() -> Iterator[Server]:
@@ -337,6 +350,53 @@ def test_a_client_that_disconnects_leaves_the_server_serving(
     second = connect(server, clients)
 
     assert ask(second, "*IDN?") == IDENTIFICATION
+
+
+def test_a_client_that_closes_without_reading_leaves_the_server_serving(
+    clients: list[socket.socket],
+) -> None:
+    """The impolite client, which is the ordinary one.
+
+    A driver whose run ended, a client that timed out and gave up, a process
+    that was interrupted: none of them read what they asked for. The listener
+    takes several of their messages out of one read, finds the peer gone while
+    answering the first, and has to not fall over the rest.
+
+    This one steps the loop from the test thread rather than running it on a
+    thread of its own. The defect is in the order of three things inside one
+    call, and against a background thread whether they happen in that order at
+    all depends on how the two ends were scheduled: the first version of this
+    test ran the loop in the background, passed, and went on passing with both
+    halves of the repair deleted. Stepping makes the order the test's rather
+    than the operating system's.
+
+    Two assertions, because a dead loop shows up as both: the step itself does
+    not raise, and a client connecting afterwards is still served.
+    """
+    stepped = Server(load_profile(PROFILE), port=0)
+    stepped.start()
+    try:
+        impolite = socket.create_connection(_where(stepped), timeout=PATIENCE)
+        clients.append(impolite)
+        stepped.serve(STEP)
+
+        for _ in range(IMPOLITE_MESSAGES):
+            impolite.sendall(b"*IDN?\n")
+        impolite.close()
+        for _ in range(STEPS_AFTER_THE_CLOSE):
+            stepped.serve(STEP)
+
+        assert stepped.sessions == ()
+
+        polite = socket.create_connection(_where(stepped), timeout=PATIENCE)
+        clients.append(polite)
+        stepped.serve(STEP)
+        polite.sendall(b"*IDN?\n")
+        stepped.serve(STEP)
+
+        assert read_one(polite) == IDENTIFICATION
+    finally:
+        stepped.stop()
 
 
 def test_starting_a_server_that_is_already_listening_is_refused(server: Server) -> None:

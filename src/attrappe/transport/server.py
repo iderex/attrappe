@@ -379,6 +379,12 @@ class Server:
                 self._refuse_the_length(connection, len(message))
                 continue
             self._run(connection, message)
+            if connection.socket not in self._connections:
+                # The message just run found the peer gone and closed the
+                # connection. What is left in the buffer is for a client that
+                # is not there, and running it would answer into a socket this
+                # loop has already closed.
+                return
 
     def _refuse_the_length(self, connection: Connection, held: int) -> None:
         connection.session.record(
@@ -415,10 +421,21 @@ class Server:
             self._close(connection)
 
     def _close(self, connection: Connection) -> None:
+        """Close one connection, and do nothing at all the second time.
+
+        The second time happens. One read can carry several messages, the first
+        of them can be the one that finds the peer gone, and what closed the
+        connection then is inside the loop that is still framing the rest. A
+        second close asks the selector for a socket whose file descriptor is
+        now `-1`, which it answers with a `ValueError` rather than a miss, and
+        that ends the serving thread for every client on it.
+        """
+        if connection.socket not in self._connections:
+            return
+        self._connections.pop(connection.socket, None)
         if self._selector is not None:
             try:
                 self._selector.unregister(connection.socket)
             except KeyError:
                 pass
-        self._connections.pop(connection.socket, None)
         connection.socket.close()
