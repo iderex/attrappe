@@ -32,12 +32,16 @@ The hash is `blake2b` rather than the built-in `hash`, whose value for a string
 is salted per process, so the same seed and the same name would give a different
 stream on every run.
 
-## What is not here yet
+## Where a refusal goes
 
-The error queue. `refusals` is a list with no depth and no overflow behaviour,
-and the depth a profile declares is loaded and unread. #23 is the queue that
-gives it both, along with the `SYSTem:ERRor?` family that reads it, and this
-list is where it lands.
+Into the instrument's error queue, at the depth the profile declares, and
+nowhere else. A session used to keep a flat list of its own beside it, and a
+client reading `SYSTem:ERRor?` would have been reading a second collection that
+agreed with the first only for as long as both were maintained. `record` is for
+a refusal that never reached the dispatch, which is what the framing in `server`
+produces, and it pushes into the same queue.
+
+## What is not here yet
 
 The clock. Nothing in a session measures time today: an integration that costs
 time is #34 and a fault that delays a response is #36, and both arrive with the
@@ -54,7 +58,7 @@ from pathlib import Path
 
 from attrappe.device import Instrument
 from attrappe.profile import Profile, load_profile
-from attrappe.scpi import Dispatch, Outcome
+from attrappe.scpi import Dispatch, Outcome, queue_entry
 from attrappe.scpi.dispatch import Error
 
 # How a stream's seed is derived: the session seed and the stream name, hashed
@@ -96,7 +100,6 @@ class Session:
     profile: Profile
     seed: int = field(default_factory=choose_seed)
     operations: int = 0
-    refusals: list[Error] = field(default_factory=list)
     instrument: Instrument = field(init=False)
     dispatch: Dispatch = field(init=False)
     _streams: dict[str, random.Random] = field(default_factory=dict, repr=False)
@@ -122,18 +125,22 @@ class Session:
         return self._streams[name]
 
     def deliver(self, message: str) -> Outcome:
-        """Run one message, count it, and keep what it refused."""
+        """Run one message and count it.
+
+        What it refused is already in the instrument's error queue when this
+        returns: the dispatch puts each refusal there as it happens, so a
+        `SYSTem:ERRor?` later in the same message reads the entries the units
+        before it produced.
+        """
         self.operations += 1
-        outcome = self.dispatch.execute(message)
-        self.refusals.extend(outcome.errors)
-        return outcome
+        return self.dispatch.execute(message)
 
     def record(self, refusal: Error) -> None:
-        """Keep a refusal that never reached the dispatch.
+        """Queue a refusal that never reached the dispatch.
 
         The framing produces these: a message too long to hold and a byte
         outside the alphabet are both refused before anything has a command to
-        run. They belong on the same list as the rest, because a client asking
+        run. They belong in the same queue as the rest, because a client asking
         the instrument what went wrong asks one question.
         """
-        self.refusals.append(refusal)
+        self.instrument.errors.push(queue_entry(refusal))

@@ -33,12 +33,11 @@ behaviour that makes a polling loop order-dependent.
 The bits are not yet set by the events that cause them. A command error, an
 execution error, a device-dependent error and a query error each own a bit, and
 nothing in this module sets any of them: the errors are produced by the dispatch
-and recorded by the error queue, and wiring the events to the bits is #24. The
-message-available bit is the same case one step further out, because there is no
-output buffer to be available from until the session in #26 exists. Both are
-absences rather than approximations: the register answers zero for a bit nothing
-has set, which is what it should answer, and it will answer one when #24 sets
-it.
+and recorded by the error queue beside it, and wiring the events to the bits is
+#24. The message-available bit is the same case one step further out, because
+nothing here holds the response until it has been read. Both are absences rather
+than approximations: the register answers zero for a bit nothing has set, which
+is what it should answer, and it will answer one when #24 sets it.
 
 Operation complete is the exception, and it is not an event wired from
 elsewhere: `*OPC` sets its own bit, which is the whole of what that command
@@ -51,6 +50,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from attrappe.device.errors import ErrorQueue
 from attrappe.profile import Node, Parameter, Profile
 
 # A walked header path: one long-form mnemonic and its numeric suffix per step.
@@ -100,10 +100,12 @@ class Instrument:
     event_status: int = 0
     event_status_enable: int = 0
     service_request_enable: int = 0
+    errors: ErrorQueue = field(init=False)
     _nodes: dict[tuple[str, ...], Node] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         self._nodes = {node.path: node for node in self.profile.nodes()}
+        self.errors = ErrorQueue(self.profile.error_queue_depth)
 
     def node_at(self, path: tuple[str, ...]) -> Node | None:
         """The node a header resolved to, or None when the tree has no such path."""
@@ -143,14 +145,16 @@ class Instrument:
         }
 
     def clear_status(self) -> None:
-        """`*CLS`: clear the event status register.
+        """`*CLS`: clear the event status register and empty the error queue.
 
         The enable masks are not cleared, because clearing them is what `*ESE 0`
         and `*SRE 0` are for and a driver that armed them expects them to stay
-        armed. The error queue is cleared by this command as well and is not
-        here to clear: it is #23's, and this method is where that lands.
+        armed. The queue is cleared here and not by `*RST`: a reset is about the
+        device's settings and this command is about its status data, and the
+        errors are status data.
         """
         self.event_status = 0
+        self.errors.clear()
 
     def read_event_status(self) -> int:
         """`*ESR?`: answer the register and clear it.

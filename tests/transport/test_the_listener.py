@@ -288,7 +288,7 @@ def test_a_message_longer_than_the_limit_is_refused_rather_than_accepted(
     client.sendall((oversize + "\n").encode("ascii"))
 
     assert ask(client, "SENS:VOLT:DC:RANG?") == "10.0"
-    assert [refusal.number for refusal in server.sessions[0].refusals] == [-363]
+    assert [entry.number for entry in server.sessions[0].instrument.errors.entries] == [-363]
 
 
 def test_a_client_that_never_terminates_is_refused_at_the_bound(
@@ -309,7 +309,7 @@ def test_a_client_that_never_terminates_is_refused_at_the_bound(
     client.sendall(b"?" * (DEFAULT_MAXIMUM_MESSAGE * 3))
     assert silence(client)
 
-    assert [refusal.number for refusal in server.sessions[0].refusals] == [-363]
+    assert [entry.number for entry in server.sessions[0].instrument.errors.entries] == [-363]
     assert sum(server.buffered) <= DEFAULT_MAXIMUM_MESSAGE
 
     assert ask(client, "\n*IDN?") == IDENTIFICATION
@@ -324,7 +324,7 @@ def test_a_byte_outside_the_alphabet_is_refused(
     assert silence(client)
 
     assert ask(client, "*IDN?") == IDENTIFICATION
-    assert [refusal.number for refusal in server.sessions[0].refusals] == [-101]
+    assert [entry.number for entry in server.sessions[0].instrument.errors.entries] == [-101]
 
 
 def test_a_declared_terminator_is_the_one_it_frames_on(clients: list[socket.socket]) -> None:

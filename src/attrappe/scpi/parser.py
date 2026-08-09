@@ -69,6 +69,7 @@ cannot be a unit suffix under any parameter.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -269,8 +270,22 @@ class Vocabulary:
     common: frozenset[str] = field(default_factory=frozenset)
 
     @classmethod
-    def from_profile(cls, profile: Profile, common: frozenset[str] | set[str]) -> Vocabulary:
-        return cls(roots=profile.roots, common=frozenset(name.upper() for name in common))
+    def from_profile(
+        cls,
+        profile: Profile,
+        common: frozenset[str] | set[str],
+        core: tuple[Node, ...] = (),
+    ) -> Vocabulary:
+        """The profile's tree, with any subsystem the core implements grafted in.
+
+        `core` is handed in for the same reason `common` is: which subsystems
+        every instrument answers to is `0006`'s and implementing them is the
+        dispatch's, and a tree written here would be a second copy of both.
+        """
+        return cls(
+            roots=_grafted(profile.roots, core),
+            common=frozenset(name.upper() for name in common),
+        )
 
     def children_of(self, path: tuple[str, ...]) -> tuple[Node, ...]:
         """The nodes reachable one step below `path`, the roots for an empty path."""
@@ -283,6 +298,41 @@ class Vocabulary:
             else:
                 return ()
         return nodes
+
+
+def _grafted(declared: tuple[Node, ...], core: tuple[Node, ...]) -> tuple[Node, ...]:
+    """Two sets of nodes at one level, merged by mnemonic rather than concatenated.
+
+    A profile is free to declare a subsystem the core also implements, and
+    `SYSTem` is the one it will reach for. Putting both lists in one vocabulary
+    would leave two nodes with the same long form side by side, and the walk in
+    `children_of` takes the first it matches, so everything under whichever came
+    second would answer as an undefined header. The client would be told a
+    command does not exist on an instrument that declares it.
+
+    Where both declare a mnemonic the core's node wins and the two sets of
+    children are merged below it, so the profile keeps everything it declared
+    beside what the core implements. The core wins rather than the profile
+    because the mandatory subsystem is what a driver sends before it will talk
+    to anything, and a profile that shadowed it would be a profile no driver
+    attaches to.
+    """
+    if not core:
+        return declared
+
+    core_by_long = {node.long: node for node in core}
+    merged: list[Node] = []
+    for node in declared:
+        counterpart = core_by_long.get(node.long)
+        merged.append(node if counterpart is None else _graft(node, counterpart))
+    declared_longs = {node.long for node in declared}
+    merged.extend(node for node in core if node.long not in declared_longs)
+    return tuple(merged)
+
+
+def _graft(declared: Node, core: Node) -> Node:
+    """One node the core and a profile both declare: the core's, children merged."""
+    return dataclasses.replace(core, children=_grafted(declared.children, core.children))
 
 
 def parse(message: str, vocabulary: Vocabulary) -> Parsed:
