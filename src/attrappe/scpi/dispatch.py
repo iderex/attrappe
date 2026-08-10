@@ -33,6 +33,11 @@ number is the record's; a case belongs to the site that produces it.
 the message joined by the message separator, or None when nothing answered,
 which is the "either a response string or nothing" the dispatch owes.
 
+Each answer goes into the instrument's output queue as its query produces it,
+and the whole queue is taken at the end of the message. That is what the
+message-available bit reads, so `*STB?` sees the answers of the queries before
+it in the same message and not its own.
+
 Two separators are in play and they are not the same one. Several queries in one
 message are joined by the semicolon that separated them, which is fixed by the
 language; several values inside one query's answer are joined by the separator
@@ -49,11 +54,13 @@ A refused unit produces no response bytes at all. That is what makes a query for
 a missing command look to a driver exactly like it looks against a real
 instrument: the client waits, the read times out, and nothing arrives.
 
-## Every refusal reaches the error queue, and it reaches it here
+## Every refusal reaches the error queue and the register, and it reaches them here
 
-`execute` pushes each refusal into the instrument's queue as it happens, which
-is what makes the queue the one place an error is recorded rather than one of
-two places an error might be recorded. The parser's refusals go in first,
+`execute` records each refusal on the instrument as it happens, which is what
+makes the queue the one place an error is written down rather than one of two
+places an error might be written down. `Instrument.record` raises the event
+status bit for the same error out of its number, so the class a driver switches
+on and the bit it polls come from one fact. The parser's refusals go in first,
 because a message is read before any of its units runs, and each unit's own
 refusal goes in when that unit is reached. So `MEAS:XYZ?;SYST:ERR?` answers with
 the undefined header the first unit produced, in the order a real instrument
@@ -73,9 +80,8 @@ profile declares one.
 
 ## What this does not do yet, named rather than approximated
 
-The refusals do not set the event status bits, which is #24 along with the
-message-available bit and the operation-complete query that waits for a running
-integration.
+The operation-complete query answers at once. It is the one part of #24 that is
+not here, and `_operation_complete_query` below says what it waits for.
 
 A query takes no parameters here. A real instrument accepts `MIN`, `MAX` and
 `DEF` on many of them and answers the declared bound instead of the current
@@ -331,7 +337,11 @@ def _operation_complete_query(dispatch: Dispatch, command: Command) -> str | Ref
 
     `0006` records that this emulator has no overlapped commands. The query that
     waits for a running integration is #34's, and it arrives with the thing
-    there is to wait for rather than as a wait over nothing.
+    there is to wait for rather than as a wait over nothing. There is no clock
+    in this tree to wait on either:
+
+        $ git grep -nE '^(def|class) .*[Cc]lock' -- src/attrappe ; echo "exit=$?"
+        exit=1
     """
     return "1"
 
@@ -485,7 +495,6 @@ class Dispatch:
         """
         parsed = parse(message, self.vocabulary)
         errors: list[Error] = list(parsed.errors)
-        answers: list[str] = []
 
         for error in parsed.errors:
             self._record(error)
@@ -496,22 +505,23 @@ class Dispatch:
                 errors.append(outcome)
                 self._record(outcome)
             elif outcome is not None:
-                answers.append(outcome)
+                self.instrument.answer(outcome)
 
+        answers = self.instrument.take_output()
         return Outcome(
             response=MESSAGE_SEPARATOR.join(answers) if answers else None,
             errors=tuple(errors),
         )
 
     def _record(self, error: Error) -> None:
-        """Put one refusal in the instrument's queue.
+        """Put one refusal in the instrument's queue and its bit in the register.
 
         Every refusal this module produces and every refusal the parser handed
         it goes through here, so a path that refuses without recording would be
         a call to `_one` whose result nothing looks at, rather than a missing
         line somebody has to notice.
         """
-        self.instrument.errors.push(queue_entry(error))
+        self.instrument.record(queue_entry(error))
 
     def _one(self, command: Command) -> str | Refused | None:
         if command.common:

@@ -136,11 +136,13 @@ class Session:
         return self.dispatch.execute(message)
 
     def record(self, refusal: Error) -> None:
-        """Queue a refusal that never reached the dispatch.
+        """Queue a refusal that never reached the dispatch, and raise its bit.
 
         The framing produces these: a message too long to hold and a byte
         outside the alphabet are both refused before anything has a command to
         run. They belong in the same queue as the rest, because a client asking
-        the instrument what went wrong asks one question.
+        the instrument what went wrong asks one question, and they belong in the
+        event status register for the same reason: a client polling `*ESR?` for
+        a command error should see the one it made on the wire.
         """
-        self.instrument.errors.push(queue_entry(refusal))
+        self.instrument.record(queue_entry(refusal))

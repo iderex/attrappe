@@ -100,17 +100,23 @@ class ErrorQueue:
         """What the error-count query answers: how many entries are waiting."""
         return len(self.entries)
 
-    def push(self, entry: Entry) -> None:
+    def push(self, entry: Entry) -> bool:
         """Record one error, or record that the queue stopped recording them.
 
         Assigning the overflow entry over a queue that already overflowed is
         the discard: the entry is already there, so the second and the five
         hundredth error after the queue filled change nothing.
+
+        Answers whether the entry was dropped instead of held. The caller needs
+        it because the overflow is an error in its own right and belongs in the
+        event status register even on the five hundredth push, where this queue
+        has nothing left to change.
         """
         if len(self.entries) < self.depth:
             self.entries.append(entry)
-            return
+            return False
         self.entries[-1] = QUEUE_OVERFLOW
+        return True
 
     def take(self) -> Entry:
         """The oldest entry, removed, or the no-error entry when there is none."""

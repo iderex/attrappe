@@ -4,10 +4,10 @@
 reset that takes them back to their declared defaults, and the status registers.
 
 `errors` is the queue every refusal is recorded in, at the depth the profile
-declares. An instrument carries one and the dispatch pushes into it, so a client
-reading the error queue reads what the parser refused and what the dispatch
-refused through one question. The events that set the status bits from those
-same errors are #24.
+declares. An instrument carries one and the dispatch pushes into it through
+`Instrument.record`, which is also what raises the event status bit for the same
+error, so a client asking `SYSTem:ERRor?` and a client asking `*ESR?` are told
+about the same refusals.
 """
 
 from attrappe.device.errors import (
@@ -24,8 +24,10 @@ from attrappe.device.errors import (
 from attrappe.device.instrument import (
     COMMAND_ERROR_BIT,
     DEVICE_ERROR_BIT,
+    ERROR_CLASSES,
     EVENT_SUMMARY_BIT,
     EXECUTION_ERROR_BIT,
+    FIRST_DEVICE_SPECIFIC_NUMBER,
     MASTER_SUMMARY_BIT,
     MESSAGE_AVAILABLE_BIT,
     OPERATION_COMPLETE_BIT,
@@ -35,13 +37,16 @@ from attrappe.device.instrument import (
     SELF_TEST_PASSED,
     Instance,
     Instrument,
+    event_bit,
 )
 
 __all__ = [
     "COMMAND_ERROR_BIT",
     "DEVICE_ERROR_BIT",
+    "ERROR_CLASSES",
     "EVENT_SUMMARY_BIT",
     "EXECUTION_ERROR_BIT",
+    "FIRST_DEVICE_SPECIFIC_NUMBER",
     "MASTER_SUMMARY_BIT",
     "MESSAGE_AVAILABLE_BIT",
     "MINIMUM_DEPTH",
@@ -60,4 +65,5 @@ __all__ = [
     "ErrorQueue",
     "Instance",
     "Instrument",
+    "event_bit",
 ]

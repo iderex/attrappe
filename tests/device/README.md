@@ -22,5 +22,11 @@ It reads a second fixture, `fixtures/queue`, and the reasons are in the fixture
 itself: a queue two entries deep so an overflow is three messages, and a
 `SYSTem` subsystem of the profile's own beside the one the core implements.
 
-The events that set the status bits from those same errors are #24, and they
-land in this directory too.
+`test_the_status_report.py` covers the other side of the registers: which event
+raises which bit, driven through a session rather than by setting a register by
+hand, and the status byte over the output queue an answer waits in. It shares
+both fixtures, because a command error is provoked by the same message here as
+it is next door and the shallow queue is what makes an overflow three messages.
+
+One of the five bits has no event in this tree, and that file's own header says
+which and why, with a check that reddens the day one arrives.
